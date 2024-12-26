@@ -5,14 +5,15 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.types.callback_query import CallbackQuery
 
-API_TOKEN = "7653663622:AAESlxbzSCDdxlOt1zf0_yYOHyxD_xJLfvY"
-MEEFF_ACCESS_TOKEN = "92K26S09E6QFT7WGH2H3P0UJ62O5E61WTIMAOO507BA2B3XN3X2SF1KYFFK1V8DVACGK9501ST1X0A130AEN4O32ACQ0QFS30MDTXTNN34DRG0WJI5KX0FTDJN690VWIEUUKXJJDUJYWZPF86UCYUAHJSU0RG8PITK6NNMLQB248Z99CYB0IQ7X6BFSI72MLN4NCF90UOXO66MDV9VJZOEAG2AG82PD4I7N9T1XDI4W7C5JTIZSE7VNRXYT7NXVY"
+API_TOKEN = "YOUR_TELEGRAM_BOT_API_TOKEN"
+MEEFF_ACCESS_TOKEN = "YOUR_MEEFF_ACCESS_TOKEN"
 
 bot = Bot(token=API_TOKEN)
 router = Router()
 dp = Dispatcher()
 
 running = False
+user_id = None  # Store the user ID to send logs to them
 
 # Inline keyboard setup
 start_button = InlineKeyboardButton(text="Start Requests", callback_data="start")
@@ -48,7 +49,20 @@ async def process_users(session, users):
             }
         ) as response:
             json_res = await response.json()
-            print(json_res)
+            log_message = f"{user_id}\n{json_res}"
+            # Send log message to the user
+            await bot.send_message(chat_id=user_id, text=log_message)
+
+            # Handle daily limit exceeded case
+            if json_res.get("errorCode") == "LikeExceeded":
+                limit_message = (
+                    "You've reached the daily limit of likes. "
+                    "Please try again tomorrow.\n"
+                    f"Details: {json_res.get('errorMessage')}"
+                )
+                await bot.send_message(chat_id=user_id, text=limit_message)
+                running = False  # Stop processing if the limit is reached
+                break
 
 async def run_requests():
     global running
@@ -59,10 +73,12 @@ async def run_requests():
             await process_users(session, users)
             count += 1
             await asyncio.sleep(5)
-            print(f"Processed batch: {count}")
+            await bot.send_message(chat_id=user_id, text=f"Processed batch: {count}")
 
 @router.message(Command("start"))
 async def start_command(message: types.Message):
+    global user_id
+    user_id = message.chat.id  # Save the user ID
     await message.answer("Welcome! Use the buttons below to start or stop requests.", reply_markup=start_stop_markup)
 
 @router.callback_query()

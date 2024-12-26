@@ -51,23 +51,27 @@ async def process_users(session, users):
             }
         ) as response:
             json_res = await response.json()
-            error_code = json_res.get("errorCode", "None")
-            results.append(f"{user_id}\n{{ errorCode: {error_code} }}")
+            error_code = json_res.get("errorCode", None)
 
-            # Handle daily limit exceeded case
-            if error_code == "LikeExceeded":
-                limit_message = (
-                    "Daily limit of likes reached. "
-                    "Please try again tomorrow.\n"
-                    f"Details: {json_res.get('errorMessage')}"
-                )
-                await bot.edit_message_text(
-                    chat_id=user_id,
-                    message_id=status_message_id,
-                    text=limit_message
-                )
-                running = False
-                break
+            if error_code:  # If there's an error
+                results.append(f"{user_id}\n{{ errorCode: {error_code} }}")
+
+                # Handle daily limit exceeded case
+                if error_code == "LikeExceeded":
+                    limit_message = (
+                        "Daily limit of likes reached. "
+                        "Please try again tomorrow.\n"
+                        f"Details: {json_res.get('errorMessage', 'No additional info')}"
+                    )
+                    await bot.edit_message_text(
+                        chat_id=user_id,
+                        message_id=status_message_id,
+                        text=limit_message
+                    )
+                    running = False
+                    break
+            else:  # If no error
+                results.append(f"{user_id} OK")
 
     # Return results for this batch
     return results
@@ -78,6 +82,15 @@ async def run_requests():
     async with aiohttp.ClientSession() as session:
         while running:
             users = await fetch_users(session)
+            if not users:  # No users fetched
+                await bot.edit_message_text(
+                    chat_id=user_id,
+                    message_id=status_message_id,
+                    text=f"Processed batch: {count}\nNo users found. Retrying..."
+                )
+                await asyncio.sleep(5)
+                continue
+
             results = await process_users(session, users)
             count += 1
 

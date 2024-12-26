@@ -6,14 +6,13 @@ from aiogram.filters import Command
 from aiogram.types.callback_query import CallbackQuery
 
 API_TOKEN = "7653663622:AAESlxbzSCDdxlOt1zf0_yYOHyxD_xJLfvY"
-MEEFF_ACCESS_TOKEN = "92K26S09E6QFT7WGH2P0UJ62O5E61WTIMAOO507BA2B3XN3X2SF1KYFFK1V8DVACGK9501ST1X0A130AEN4O32ACQ0QFS30MDTXTNN34DRG0WJI5KX0FTDJN690VWIEUUKXJJDUJYWZPF86UCYUAHJSU0RG8PITK6NNMLQB248Z99CYB0IQ7X6BFSI72MLN4NCF90UOXO66MDV9VJZOEAG2AG82PD4I7N9T1XDI4W7C5JTIZSE7VNRXYT7NXVY"
+MEEFF_ACCESS_TOKEN = "92K26S09E6QFT7WGH2H3P0UJ62O5E61WTIMAOO507BA2B3XN3X2SF1KYFFK1V8DVACGK9501ST1X0A130AEN4O32ACQ0QFS30MDTXTNN34DRG0WJI5KX0FTDJN690VWIEUUKXJJDUJYWZPF86UCYUAHJSU0RG8PITK6NNMLQB248Z99CYB0IQ7X6BFSI72MLN4NCF90UOXO66MDV9VJZOEAG2AG82PD4I7N9T1XDI4W7C5JTIZSE7VNRXYT7NXVY"
 
 bot = Bot(token=API_TOKEN)
 router = Router()
 dp = Dispatcher()
 
 running = False
-user_id = None  # To keep track of the user who started the bot
 
 # Inline keyboard setup
 start_button = InlineKeyboardButton(text="Start Requests", callback_data="start")
@@ -37,7 +36,6 @@ async def fetch_users(session):
 
 async def process_users(session, users):
     global running
-    results = []
     for user in users:
         if not running:
             break
@@ -50,32 +48,21 @@ async def process_users(session, users):
             }
         ) as response:
             json_res = await response.json()
-            error_code = json_res.get("errorCode", None)
-            if error_code:
-                results.append(f"{user_id} - Error: {error_code}")
-            else:
-                results.append(f"{user_id} - OK")
-    return results
+            print(json_res)
 
 async def run_requests():
-    global running, user_id
+    global running
     count = 0
     async with aiohttp.ClientSession() as session:
         while running:
             users = await fetch_users(session)
-            results = await process_users(session, users)
+            await process_users(session, users)
             count += 1
-
-            # Send or update processing results to the user
-            result_message = f"Processed batch: {count}\n\n" + "\n".join(results)
-            await bot.send_message(chat_id=user_id, text=result_message)
-
             await asyncio.sleep(5)
+            print(f"Processed batch: {count}")
 
 @router.message(Command("start"))
 async def start_command(message: types.Message):
-    global user_id
-    user_id = message.chat.id  # Save the user's chat ID
     await message.answer("Welcome! Use the buttons below to start or stop requests.", reply_markup=start_stop_markup)
 
 @router.callback_query()

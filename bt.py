@@ -34,21 +34,17 @@ stop_markup = InlineKeyboardMarkup(inline_keyboard=[
 
 # Fetch users from MEEFF API
 async def fetch_users(session):
-    try:
-        async with session.get(
-            "https://api.meeff.com/user/explore/v2/?lat=-3.7895238&lng=-38.5327365",
-            headers={
-                "meeff-access-token": MEEFF_ACCESS_TOKEN,
-                "Connection": "keep-alive",
-            }
-        ) as response:
-            if response.status == 200:
-                json_response = await response.json()
-                return json_response.get("users", [])
-            logging.error(f"Failed to fetch users. Status code: {response.status}")
-            return []
-    except Exception as e:
-        logging.error(f"Error fetching users: {e}")
+    async with session.get(
+        "https://api.meeff.com/user/explore/v2/?lat=-3.7895238&lng=-38.5327365",
+        headers={
+            "meeff-access-token": MEEFF_ACCESS_TOKEN,
+            "Connection": "keep-alive",
+        }
+    ) as response:
+        json_response = await response.json()
+        logging.info(f"Fetch Users Response: {json_response}")
+        if response.status == 200:
+            return json_response.get("users", [])
         return []
 
 # Process each user
@@ -57,28 +53,51 @@ async def process_users(session, users):
     for user in users:
         if not running:
             break
+
+        # Extract user details
         user_id = user.get("_id")
-        try:
-            async with session.get(
-                f"https://api.meeff.com/user/undoableAnswer/v5/?userId={user_id}&isOkay=1",
-                headers={
-                    "meeff-access-token": MEEFF_ACCESS_TOKEN,
-                    "Connection": "keep-alive",
-                }
-            ) as response:
-                json_res = await response.json()
-                if "errorCode" in json_res and json_res["errorCode"] == "LikeExceeded":
-                    if user_chat_id:
-                        await bot.edit_message_text(
-                            chat_id=user_chat_id,
-                            message_id=status_message_id,
-                            text="Meeff:\nYou've reached the daily limit of likes. Processing will stop. Please try again tomorrow.",
-                            reply_markup=None
-                        )
-                    running = False
-                    return True  # Stop processing
-        except Exception as e:
-            logging.error(f"Error processing user {user_id}: {e}")
+        name = user.get("name", "Unknown")
+        age = user.get("age", "N/A")
+        location = user.get("location", {}).get("city", "Unknown")
+        bio = user.get("bio", "No bio available")
+        interests = user.get("interests", [])
+        interests_str = ", ".join(interests) if interests else "None"
+
+        # Log user details
+        logging.info(f"Processing User: ID={user_id}, Name={name}, Age={age}, Location={location}, Bio={bio}, Interests={interests_str}")
+
+        # Send request to "Like" the user
+        async with session.get(
+            f"https://api.meeff.com/user/undoableAnswer/v5/?userId={user_id}&isOkay=1",
+            headers={
+                "meeff-access-token": MEEFF_ACCESS_TOKEN,
+                "Connection": "keep-alive",
+            }
+        ) as response:
+            json_res = await response.json()
+            logging.info(f"Process User Response for {user_id}: {json_res}")
+
+            # Check for "LikeExceeded" error
+            if "errorCode" in json_res and json_res["errorCode"] == "LikeExceeded":
+                if user_chat_id:
+                    await bot.edit_message_text(
+                        chat_id=user_chat_id,
+                        message_id=status_message_id,
+                        text=f"Meeff:\nYou've reached the daily limit of likes. Processing will stop. Please try again tomorrow.\nLast processed user: {name}, Age: {age}, Location: {location}",
+                        reply_markup=None
+                    )
+                running = False
+                return True  # Stop processing
+
+        # Update the Telegram message with user details
+        if user_chat_id:
+            await bot.edit_message_text(
+                chat_id=user_chat_id,
+                message_id=status_message_id,
+                text=f"Meeff:\nProcessing User: {name}, Age: {age}, Location: {location}\nBio: {bio}\nInterests: {interests_str}",
+                reply_markup=stop_markup
+            )
+
     return False  # Continue processing
 
 # Run requests periodically

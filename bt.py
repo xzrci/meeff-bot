@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher, Router, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.types.callback_query import CallbackQuery
-from db_helper import set_token, get_tokens
+from db_helper import set_token, get_tokens, set_current_account, get_current_account
 
 # Tokens
 API_TOKEN = "7780275950:AAFZoZamRNCATEapl6rg2hmrUCbSCpXufyk"
@@ -21,7 +21,7 @@ dp = Dispatcher()
 # Global state variables
 running = False
 user_chat_id = None
-status_message_id = None  # To track the message being updated
+status_message_id = None
 
 # Inline keyboards
 start_markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -33,148 +33,122 @@ stop_markup = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Stop Requests", callback_data="stop")]
 ])
 
-# Fetch users from MEEFF API
-async def fetch_users(session, user_id):
-    tokens = get_tokens(user_id)
-    if not tokens:
-        return None, "No MEEFF access token found. Please add one using the Account menu."
+back_markup = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="Back", callback_data="back_to_menu")]
+])
 
-    meeff_access_token = tokens[0]["token"]  # Use the first token for now
-    async with session.get(
-        "https://api.meeff.com/user/explore/v2/?lat=-3.7895238&lng=-38.5327365",
-        headers={
-            "meeff-access-token": meeff_access_token,
-            "Connection": "keep-alive",
-        }
-    ) as response:
-        json_response = await response.json()
-        if response.status == 200:
-            return json_response.get("users", []), None
-        return None, f"Error fetching users: {json_response.get('message', 'Unknown error')}"
-
-# Process users
-async def process_users(session, user_id, users):
-    global running
-
-    tokens = get_tokens(user_id)
-    if not tokens:
-        return "No MEEFF access token found. Please add one using the Account menu."
-
-    meeff_access_token = tokens[0]["token"]
-
-    for user in users:
-        if not running:
-            break
-        user_id = user.get("_id")
-        async with session.get(
-            f"https://api.meeff.com/user/undoableAnswer/v5/?userId={user_id}&isOkay=1",
-            headers={
-                "meeff-access-token": meeff_access_token,
-                "Connection": "keep-alive",
-            }
-        ) as response:
-            json_res = await response.json()
-            if "errorCode" in json_res and json_res["errorCode"] == "LikeExceeded":
-                return "You've reached the daily limit of likes. Processing will stop."
-
-    return None
-
-# Run requests periodically
-async def run_requests(user_id):
-    global running, status_message_id
-    count = 0
+# Fetch account details from MEEFF API
+async def fetch_account_details(token):
+    url = "https://api.meeff.com/user/info/v1"
+    headers = {
+        "User-Agent": "okhttp/4.12.0",
+        "Accept-Encoding": "gzip",
+        "meeff-access-token": token
+    }
 
     async with aiohttp.ClientSession() as session:
-        while running:
-            try:
-                users, error = await fetch_users(session, user_id)
-                if error:
-                    await bot.edit_message_text(
-                        chat_id=user_chat_id,
-                        message_id=status_message_id,
-                        text=f"Meeff:\n{error}",
-                        reply_markup=None
-                    )
-                    running = False
-                    return
+        async with session.get(url, headers=headers) as response:
+            if response.status != 200:
+                return None, f"Error: {response.status}"
+            data = await response.json()
+            return data, None
 
-                if not users:
-                    await bot.edit_message_text(
-                        chat_id=user_chat_id,
-                        message_id=status_message_id,
-                        text=f"Meeff:\nProcessed batch: {count}, Users fetched: 0",
-                        reply_markup=stop_markup
-                    )
-                else:
-                    error = await process_users(session, user_id, users)
-                    if error:
-                        await bot.edit_message_text(
-                            chat_id=user_chat_id,
-                            message_id=status_message_id,
-                            text=f"Meeff:\n{error}",
-                            reply_markup=None
-                        )
-                        running = False
-                        return
-
-                    count += 1
-                    await bot.edit_message_text(
-                        chat_id=user_chat_id,
-                        message_id=status_message_id,
-                        text=f"Meeff:\nProcessed batch: {count}, Users fetched: {len(users)}",
-                        reply_markup=stop_markup
-                    )
-                await asyncio.sleep(5)
-            except Exception as e:
-                logging.error(f"Error during processing: {e}")
-                await bot.edit_message_text(
-                    chat_id=user_chat_id,
-                    message_id=status_message_id,
-                    text=f"Meeff:\nAn error occurred: {str(e)}",
-                    reply_markup=None
-                )
-                break
-
-# Command handler to start the bot
-@router.message(Command("start"))
-async def start_command(message: types.Message):
-    global user_chat_id
-    user_chat_id = message.chat.id
-    await message.answer("Welcome! Use the buttons below to navigate.", reply_markup=start_markup)
-
-# Callback query handler for inline buttons
+# Handle account button actions
 @router.callback_query()
-async def callback_handler(callback_query: CallbackQuery):
-    global running, status_message_id
+async def account_callback_handler(callback_query: CallbackQuery):
+    user_id = callback_query.from_user.id
 
-    if callback_query.data == "start":
-        if running:
-            await callback_query.answer("Requests are already running!")
-        else:
-            running = True
-            status_message = await callback_query.message.edit_text(
-                "Meeff:\nInitializing requests...",
-                reply_markup=stop_markup
-            )
-            status_message_id = status_message.message_id
-            asyncio.create_task(run_requests(callback_query.from_user.id))
-            await callback_query.answer("Requests started!")
-    elif callback_query.data == "stop":
-        if not running:
-            await callback_query.answer("Requests are not running!")
-        else:
-            running = False
+    if callback_query.data == "account":
+        tokens = get_tokens(user_id)
+
+        if not tokens:
             await callback_query.message.edit_text(
-                "Meeff:\nRequests stopped. Use the button below to start again.",
-                reply_markup=start_markup
+                "No accounts saved. Send a new token to add an account.",
+                reply_markup=back_markup
             )
-            await callback_query.answer("Requests stopped.")
+            return
 
-# Polling for the bot
+        buttons = [
+            [InlineKeyboardButton(text=f"Account {i + 1}", callback_data=f"view_account_{i}")]
+            for i, t in enumerate(tokens)
+        ]
+        buttons.append([InlineKeyboardButton(text="Back", callback_data="back_to_menu")])
+        markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+        await callback_query.message.edit_text(
+            "Your Accounts. Click on any account to view details:",
+            reply_markup=markup
+        )
+    elif callback_query.data.startswith("view_account_"):
+        account_index = int(callback_query.data.split("_")[-1])
+        tokens = get_tokens(user_id)
+
+        if account_index >= len(tokens):
+            await callback_query.answer("Invalid account selected.")
+            return
+
+        token = tokens[account_index]["token"]
+        account_data, error = await fetch_account_details(token)
+
+        if error:
+            await callback_query.message.edit_text(f"Failed to fetch account details: {error}")
+            return
+
+        account_info = account_data.get("user", {})
+        details = (
+            f"Name: {account_info.get('name', 'N/A')}\n"
+            f"Email: {account_info.get('email', 'N/A')}\n"
+            f"Gender: {'Male' if account_info.get('gender') else 'Female'}\n"
+            f"Description: {account_info.get('description', 'N/A')}\n"
+            f"Nationality: {account_info.get('nationalityCode', 'N/A')}\n"
+            f"Ruby: {account_info.get('ruby', 0)}\n"
+        )
+
+        buttons = [
+            [InlineKeyboardButton(text="Set as Current", callback_data=f"set_current_{account_index}")],
+            [InlineKeyboardButton(text="Back to Accounts", callback_data="account")]
+        ]
+        markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+        await callback_query.message.edit_text(details, reply_markup=markup)
+    elif callback_query.data.startswith("set_current_"):
+        account_index = int(callback_query.data.split("_")[-1])
+        tokens = get_tokens(user_id)
+
+        if account_index >= len(tokens):
+            await callback_query.answer("Invalid account selected.")
+            return
+
+        token = tokens[account_index]["token"]
+        set_current_account(user_id, token)
+
+        await callback_query.message.edit_text(
+            "This account has been set as the current account.",
+            reply_markup=back_markup
+        )
+    elif callback_query.data == "back_to_menu":
+        await callback_query.message.edit_text(
+            "Welcome! Use the buttons below to navigate.",
+            reply_markup=start_markup
+        )
+
+# Handle new token submission
+@router.message()
+async def handle_new_token(message: types.Message):
+    user_id = message.from_user.id
+    token = message.text.strip()
+
+    if len(token) < 10:
+        await message.reply("Invalid token. Please try again.")
+        return
+
+    set_token(user_id, token)
+    await message.reply("Your access token has been saved.")
+
+# Start polling
 async def main():
     dp.include_router(router)
     await dp.start_polling(bot)
 
-# Entry point
 if __name__ == "__main__":
     asyncio.run(main())

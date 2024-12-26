@@ -1,18 +1,23 @@
+import os
 import asyncio
 import aiohttp
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.types.callback_query import CallbackQuery
+from dotenv import load_dotenv  # Use for environment variables
 
-API_TOKEN = "7653663622:AAESlxbzSCDdxlOt1zf0_yYOHyxD_xJLfvY"
-MEEFF_ACCESS_TOKEN = "92K26S09E6QFT7WGH2H3P0UJ62O5E61WTIMAOO507BA2B3XN3X2SF1KYFFK1V8DVACGK9501ST1X0A130AEN4O32ACQ0QFS30MDTXTNN34DRG0WJI5KX0FTDJN690VWIEUUKXJJDUJYWZPF86UCYUAHJSU0RG8PITK6NNMLQB248Z99CYB0IQ7X6BFSI72MLN4NCF90UOXO66MDV9VJZOEAG2AG82PD4I7N9T1XDI4W7C5JTIZSE7VNRXYT7NXVY"
+# Load environment variables
+load_dotenv()
+API_TOKEN = os.getenv("API_TOKEN")
+MEEFF_ACCESS_TOKEN = os.getenv("MEEFF_ACCESS_TOKEN")
 
 bot = Bot(token=API_TOKEN)
 router = Router()
 dp = Dispatcher()
 
 running = False
+admin_chat_id = None  # Set your Telegram chat ID here to receive logs (optional)
 
 # Inline keyboard setup
 start_button = InlineKeyboardButton(text="Start Requests", callback_data="start")
@@ -22,16 +27,19 @@ start_stop_markup = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 async def fetch_users(session):
-    async with session.get(
-        "https://api.meeff.com/user/explore/v2/?lat=-3.7895238&lng=-38.5327365",
-        headers={
-            "meeff-access-token": MEEFF_ACCESS_TOKEN,
-            "Connection": "keep-alive",
-        }
-    ) as response:
-        if response.status == 200:
-            json_response = await response.json()
-            return json_response.get("users", [])
+    try:
+        async with session.get(
+            "https://api.meeff.com/user/explore/v2/?lat=-3.7895238&lng=-38.5327365",
+            headers={
+                "meeff-access-token": MEEFF_ACCESS_TOKEN,
+                "Connection": "keep-alive",
+            }
+        ) as response:
+            if response.status == 200:
+                json_response = await response.json()
+                return json_response.get("users", [])
+    except Exception as e:
+        print(f"Error fetching users: {e}")
     return []
 
 async def process_users(session, users):
@@ -40,29 +48,55 @@ async def process_users(session, users):
         if not running:
             break
         user_id = user.get("_id")
-        async with session.get(
-            f"https://api.meeff.com/user/undoableAnswer/v5/?userId={user_id}&isOkay=1",
-            headers={
-                "meeff-access-token": MEEFF_ACCESS_TOKEN,
-                "Connection": "keep-alive",
-            }
-        ) as response:
-            json_res = await response.json()
-            print(json_res)
+        try:
+            async with session.get(
+                f"https://api.meeff.com/user/undoableAnswer/v5/?userId={user_id}&isOkay=1",
+                headers={
+                    "meeff-access-token": MEEFF_ACCESS_TOKEN,
+                    "Connection": "keep-alive",
+                }
+            ) as response:
+                if response.status == 200:
+                    json_res = await response.json()
+                    if json_res.get("errorCode") == "LikeExceeded":
+                        error_message = json_res.get("errorMessage", "Limit exceeded.")
+                        prices = json_res.get("prices", {})
+                        log_message = (
+                            f"{json_res}\n"
+                            f"Error: {error_message}\n"
+                            f"Prices: {prices}\n"
+                            "Stopping bot..."
+                        )
+                        print(log_message)  # Log on the server
+                        if admin_chat_id:
+                            await bot.send_message(
+                                chat_id=admin_chat_id,
+                                text=log_message
+                            )  # Notify admin on Telegram
+                        running = False
+                        return
+                    print(json_res)  # Log successful response
+        except Exception as e:
+            print(f"Error processing user {user_id}: {e}")
 
 async def run_requests():
     global running
     count = 0
     async with aiohttp.ClientSession() as session:
         while running:
-            users = await fetch_users(session)
-            await process_users(session, users)
-            count += 1
-            await asyncio.sleep(5)
-            print(f"Processed batch: {count}")
+            try:
+                users = await fetch_users(session)
+                await process_users(session, users)
+                count += 1
+                await asyncio.sleep(5)
+                print(f"Processed batch: {count}")
+            except Exception as e:
+                print(f"Error in run_requests: {e}")
 
 @router.message(Command("start"))
 async def start_command(message: types.Message):
+    global admin_chat_id
+    admin_chat_id = message.chat.id  # Save the admin's chat ID
     await message.answer("Welcome! Use the buttons below to start or stop requests.", reply_markup=start_stop_markup)
 
 @router.callback_query()

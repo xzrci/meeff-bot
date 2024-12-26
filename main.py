@@ -1,13 +1,17 @@
 import asyncio
 import aiohttp
+import logging
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.types.callback_query import CallbackQuery
 
 # Tokens
-API_TOKEN = "7780275950:AAFZoZamRNCATEapl6rg2hmrUCbSCpXufyk"
-MEEFF_ACCESS_TOKEN = "CJ99XRSADKYRKXOMYTG44TNL16U7KZ0AW5RSGJU4OX60R3I9CD7ER3TVARJAXYWMKTBVZ5U24V5VR0Z85NX6INU7301WTVIF3LCH7GP54J7T0XD41UEKSRONBPNKL6N8W0T42C4H9H8EJ2X2H58W6SWUQBL5KKET6P1R6DGLNQZUO1MO52IB6D08Y4YPK6BU0IBKNSBMCU2QYTU5YSDEWVP5FQNLPCA0JSD5J9SHIGUD30PXPVW9BH0GOJ5VRYKV"
+API_TOKEN = "7653663622:AAESlxbzSCDdxlOt1zf0_yYOHyxD_xJLfvY"
+MEEFF_ACCESS_TOKEN = "92K26S09E6QFT7WGH2H3P0UJ62O5E61WTIMAOO507BA2B3XN3X2SF1KYFFK1V8DVACGK9501ST1X0A130AEN4O32ACQ0QFS30MDTXTNN34DRG0WJI5KX0FTDJN690VWIEUUKXJJDUJYWZPF86UCYUAHJSU0RG8PITK6NNMLQB248Z99CYB0IQ7X6BFSI72MLN4NCF90UOXO66MDV9VJZOEAG2AG82PD4I7N9T1XDI4W7C5JTIZSE7VNRXYT7NXVY"
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Initialize bot and dispatcher
 bot = Bot(token=API_TOKEN)
@@ -37,10 +41,11 @@ async def fetch_users(session):
             "Connection": "keep-alive",
         }
     ) as response:
+        json_response = await response.json()
+        logging.info(f"Fetch Users Response: {json_response}")  # Log the API response
         if response.status == 200:
-            json_response = await response.json()
             return json_response.get("users", [])
-    return []
+        return []
 
 # Process each user
 async def process_users(session, users):
@@ -57,6 +62,7 @@ async def process_users(session, users):
             }
         ) as response:
             json_res = await response.json()
+            logging.info(f"Process User Response for {user_id}: {json_res}")  # Log the API response
 
             # Check for "LikeExceeded" error
             if "errorCode" in json_res and json_res["errorCode"] == "LikeExceeded":
@@ -100,6 +106,7 @@ async def run_requests():
                     )
                 await asyncio.sleep(5)
             except Exception as e:
+                logging.error(f"Error during processing: {e}")
                 await bot.edit_message_text(
                     chat_id=user_chat_id,
                     message_id=status_message_id,

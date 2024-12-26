@@ -175,7 +175,10 @@ async def callback_handler(callback_query: CallbackQuery):
         buttons = []
         for i, token in enumerate(tokens):
             is_current = "(Current)" if token["token"] == current_token else ""
-            buttons.append([InlineKeyboardButton(text=f"Account {i + 1} {is_current}", callback_data=f"set_account_{i}")])
+            buttons.append([
+                InlineKeyboardButton(text=f"Account {i + 1} {is_current}", callback_data=f"set_account_{i}"),
+                InlineKeyboardButton(text="Delete", callback_data=f"delete_account_{i}")
+            ])
         buttons.append([InlineKeyboardButton(text="Back", callback_data="back_to_menu")])
         markup = InlineKeyboardMarkup(inline_keyboard=buttons)
         await callback_query.message.edit_text("Manage your accounts:", reply_markup=markup)
@@ -200,50 +203,12 @@ async def callback_handler(callback_query: CallbackQuery):
         delete_token(user_id, tokens[index]["token"])
         await callback_query.message.edit_text("Account has been deleted.", reply_markup=back_markup)
 
-    elif callback_query.data == "start":
-        if running:
-            await callback_query.answer("Requests are already running!")
-            logging.info("Attempted to start requests, but they are already running.")
-        else:
-            running = True
-            try:
-                status_message = await callback_query.message.edit_text(
-                    "Meeff:\nInitializing requests...",
-                    reply_markup=stop_markup
-                )
-                status_message_id = status_message.message_id
-                asyncio.create_task(run_requests())
-                await callback_query.answer("Requests started!")
-                logging.info("Requests started successfully.")
-            except Exception as e:
-                logging.error(f"Error while starting requests: {e}")
-                await callback_query.message.edit_text(
-                    "Meeff:\nFailed to start requests. Please try again later.",
-                    reply_markup=start_markup
-                )
-                running = False
-
-    elif callback_query.data == "stop":
-        if not running:
-            await callback_query.answer("Requests are not running!")
-            logging.info("Attempted to stop requests, but they are not running.")
-        else:
-            running = False
-            try:
-                await callback_query.message.edit_text(
-                    "Meeff:\nRequests stopped. Use the button below to start again.",
-                    reply_markup=start_markup
-                )
-                await callback_query.answer("Requests stopped.")
-                logging.info("Requests stopped successfully.")
-            except Exception as e:
-                logging.error(f"Error while stopping requests: {e}")
-
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text(
             "Welcome! Use the buttons below to navigate.",
             reply_markup=start_markup
         )
+
 
 # Main function to start the bot
 async def main():

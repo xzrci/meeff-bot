@@ -7,7 +7,7 @@ from aiogram.types.callback_query import CallbackQuery
 
 # Tokens
 API_TOKEN = "7653663622:AAESlxbzSCDdxlOt1zf0_yYOHyxD_xJLfvY"
-MEEFF_ACCESS_TOKEN = "92K26S09E6QFT7WGH2P0UJ62O5E61WTIMAOO507BA2B3XN3X2SF1KYFFK1V8DVACGK9501ST1X0A130AEN4O32ACQ0QFS30MDTXTNN34DRG0WJI5KX0FTDJN690VWIEUUKXJJDUJYWZPF86UCYUAHJSU0RG8PITK6NNMLQB248Z99CYB0IQ7X6BFSI72MLN4NCF90UOXO66MDV9VJZOEAG2AG82PD4I7N9T1XDI4W7C5JTIZSE7VNRXYT7NXVY"
+MEEFF_ACCESS_TOKEN = "92K26S09E6QFT7WGH2H3P0UJ62O5E61WTIMAOO507BA2B3XN3X2SF1KYFFK1V8DVACGK9501ST1X0A130AEN4O32ACQ0QFS30MDTXTNN34DRG0WJI5KX0FTDJN690VWIEUUKXJJDUJYWZPF86UCYUAHJSU0RG8PITK6NNMLQB248Z99CYB0IQ7X6BFSI72MLN4NCF90UOXO66MDV9VJZOEAG2AG82PD4I7N9T1XDI4W7C5JTIZSE7VNRXYT7NXVY"
 
 # Initialize bot and dispatcher
 bot = Bot(token=API_TOKEN)
@@ -41,7 +41,7 @@ async def fetch_users(session):
 
 # Process each user
 async def process_users(session, users):
-    global running
+    global running, user_chat_id
     for user in users:
         if not running:
             break
@@ -54,7 +54,19 @@ async def process_users(session, users):
             }
         ) as response:
             json_res = await response.json()
-            print(json_res)  # You can log it to the console if needed
+
+            # Check if the "LikeExceeded" error occurs
+            if "errorCode" in json_res and json_res["errorCode"] == "LikeExceeded":
+                if user_chat_id:
+                    await bot.send_message(
+                        user_chat_id,
+                        "You've reached the daily limit of likes. Processing will stop. Please try again tomorrow."
+                    )
+                print(json_res)  # Log the error message
+                running = False  # Stop the process
+                break
+            else:
+                print(json_res)  # Log normal responses
 
 # Run requests periodically
 async def run_requests():
@@ -64,16 +76,18 @@ async def run_requests():
         while running:
             try:
                 users = await fetch_users(session)
-                await process_users(session, users)
-                count += 1
+                if not users:
+                    if user_chat_id:
+                        await bot.send_message(user_chat_id, "No users found in the current batch.")
+                else:
+                    await process_users(session, users)
 
-                # Send progress updates to the user
+                count += 1
                 if user_chat_id:
                     await bot.send_message(
                         user_chat_id,
                         f"Processed batch: {count}, Users fetched: {len(users)}"
                     )
-
                 await asyncio.sleep(5)
             except Exception as e:
                 if user_chat_id:

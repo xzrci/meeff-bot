@@ -53,6 +53,7 @@ async def fetch_account_details(token):
             return data, None
 
 # Handle account button actions
+# Handle account button actions
 @router.callback_query()
 async def account_callback_handler(callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
@@ -79,41 +80,41 @@ async def account_callback_handler(callback_query: CallbackQuery):
             reply_markup=markup
         )
     elif callback_query.data.startswith("view_account_"):
-    account_index = int(callback_query.data.split("_")[-1])
-    tokens = get_tokens(user_id)
+        account_index = int(callback_query.data.split("_")[-1])
+        tokens = get_tokens(user_id)
 
-    if account_index >= len(tokens):
-        await callback_query.answer("Invalid account selected.")
-        return
+        if account_index >= len(tokens):
+            await callback_query.answer("Invalid account selected.")
+            return
 
-    token = tokens[account_index]["token"]
-    # Assuming you store userId along with token in the database
-    user_id = "6725beb14fbd9c000108e52c"  # Replace with dynamic retrieval from your DB if needed
+        token = tokens[account_index]["token"]
+        # Assuming you store userId along with token in the database
+        user_id = "6725beb14fbd9c000108e52c"  # Replace with dynamic retrieval from your DB if needed
 
-    account_data, error = await fetch_account_details(token, user_id)
+        account_data, error = await fetch_account_details(token, user_id)
 
-    if error:
-        await callback_query.message.edit_text(f"Unable to fetch account details. Error: {error}")
-        return
+        if error:
+            await callback_query.message.edit_text(f"Unable to fetch account details. Error: {error}")
+            return
 
-    account_info = account_data.get("user", {})
-    details = (
-        f"Name: {account_info.get('name', 'N/A')}\n"
-        f"Email: {account_info.get('email', 'N/A')}\n"
-        f"Gender: {'Male' if account_info.get('gender') else 'Female'}\n"
-        f"Description: {account_info.get('description', 'N/A')}\n"
-        f"Nationality: {account_info.get('nationalityCode', 'N/A')}\n"
-        f"Ruby: {account_info.get('ruby', 0)}\n"
-    )
+        account_info = account_data.get("user", {})
+        details = (
+            f"Name: {account_info.get('name', 'N/A')}\n"
+            f"Email: {account_info.get('email', 'N/A')}\n"
+            f"Gender: {'Male' if account_info.get('gender') else 'Female'}\n"
+            f"Description: {account_info.get('description', 'N/A')}\n"
+            f"Nationality: {account_info.get('nationalityCode', 'N/A')}\n"
+            f"Ruby: {account_info.get('ruby', 0)}\n"
+        )
 
-    buttons = [
-        [InlineKeyboardButton(text="Set as Current", callback_data=f"set_current_{account_index}")],
-        [InlineKeyboardButton(text="Delete Account", callback_data=f"delete_account_{account_index}")],
-        [InlineKeyboardButton(text="Back to Accounts", callback_data="account")]
-    ]
-    markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+        buttons = [
+            [InlineKeyboardButton(text="Set as Current", callback_data=f"set_current_{account_index}")],
+            [InlineKeyboardButton(text="Delete Account", callback_data=f"delete_account_{account_index}")],
+            [InlineKeyboardButton(text="Back to Accounts", callback_data="account")]
+        ]
+        markup = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-    await callback_query.message.edit_text(details, reply_markup=markup)
+        await callback_query.message.edit_text(details, reply_markup=markup)
     elif callback_query.data.startswith("set_current_"):
         account_index = int(callback_query.data.split("_")[-1])
         tokens = get_tokens(user_id)
@@ -149,6 +150,7 @@ async def account_callback_handler(callback_query: CallbackQuery):
             "Welcome! Use the buttons below to navigate.",
             reply_markup=start_markup
         )
+
 
 @router.message(Command("start"))
 async def start_command(message: types.Message):

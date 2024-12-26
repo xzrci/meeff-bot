@@ -9,8 +9,9 @@ API_TOKEN = "7653663622:AAESlxbzSCDdxlOt1zf0_yYOHyxD_xJLfvY"
 MEEFF_ACCESS_TOKEN = "92K26S09E6QFT7WGH2H3P0UJ62O5E61WTIMAOO507BA2B3XN3X2SF1KYFFK1V8DVACGK9501ST1X0A130AEN4O32ACQ0QFS30MDTXTNN34DRG0WJI5KX0FTDJN690VWIEUUKXJJDUJYWZPF86UCYUAHJSU0RG8PITK6NNMLQB248Z99CYB0IQ7X6BFSI72MLN4NCF90UOXO66MDV9VJZOEAG2AG82PD4I7N9T1XDI4W7C5JTIZSE7VNRXYT7NXVY"
 
 bot = Bot(token=API_TOKEN)
-router = Router()
-dp = Dispatcher(bot, router=router)
+dp = Dispatcher(bot)  # Only pass the bot instance here
+
+router = Router()  # Create the router separately
 
 running = False
 
@@ -83,6 +84,9 @@ async def callback_handler(callback_query: types.CallbackQuery):
             await callback_query.answer("Stopped processing requests!")
 
 if __name__ == "__main__":
+    # Add router to the dispatcher
+    dp.include_router(router)
+
     # New method to start the bot in aiogram v3.x
     async def on_start():
         await dp.start_polling()

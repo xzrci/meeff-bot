@@ -78,7 +78,6 @@ async def run_requests():
     async with aiohttp.ClientSession() as session:
         while running:
             try:
-                # Retrieve the current account token from the database
                 token = get_current_account(user_chat_id)
                 if not token:
                     logging.error("No active account token found.")
@@ -93,7 +92,6 @@ async def run_requests():
 
                 logging.info(f"Using token: {token}")
 
-                # Fetch users
                 users = await fetch_users(session, token)
                 if not users:
                     await bot.edit_message_text(
@@ -103,7 +101,6 @@ async def run_requests():
                         reply_markup=stop_markup
                     )
                 else:
-                    # Process users
                     limit_exceeded = await process_users(session, users, token)
                     if limit_exceeded:
                         logging.info("Daily like limit reached.")
@@ -156,7 +153,6 @@ async def handle_new_token(message: types.Message):
         await message.reply("Invalid token. Please try again.")
         return
 
-    # Save the token to the database
     set_token(user_id, token, "meeff_user_id_placeholder")
     await message.reply("Your access token has been saved. Use the menu to manage accounts.")
 
@@ -168,6 +164,7 @@ async def callback_handler(callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
     if callback_query.data == "manage_accounts":
         tokens = get_tokens(user_id)
+        current_token = get_current_account(user_id)
         if not tokens:
             await callback_query.message.edit_text(
                 "No accounts saved. Send a new token to add an account.",
@@ -175,10 +172,10 @@ async def callback_handler(callback_query: CallbackQuery):
             )
             return
 
-        buttons = [
-            [InlineKeyboardButton(text=f"Account {i + 1}", callback_data=f"set_account_{i}")]
-            for i, token in enumerate(tokens)
-        ]
+        buttons = []
+        for i, token in enumerate(tokens):
+            is_current = "(Current)" if token["token"] == current_token else ""
+            buttons.append([InlineKeyboardButton(text=f"Account {i + 1} {is_current}", callback_data=f"set_account_{i}")])
         buttons.append([InlineKeyboardButton(text="Back", callback_data="back_to_menu")])
         markup = InlineKeyboardMarkup(inline_keyboard=buttons)
         await callback_query.message.edit_text("Manage your accounts:", reply_markup=markup)
@@ -192,6 +189,16 @@ async def callback_handler(callback_query: CallbackQuery):
 
         set_current_account(user_id, tokens[index]["token"])
         await callback_query.message.edit_text("Account set as active. You can now start requests.")
+
+    elif callback_query.data.startswith("delete_account_"):
+        index = int(callback_query.data.split("_")[-1])
+        tokens = get_tokens(user_id)
+        if index >= len(tokens):
+            await callback_query.answer("Invalid account selected.")
+            return
+
+        delete_token(user_id, tokens[index]["token"])
+        await callback_query.message.edit_text("Account has been deleted.", reply_markup=back_markup)
 
     elif callback_query.data == "start":
         if running:

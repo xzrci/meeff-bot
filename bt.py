@@ -37,7 +37,7 @@ stop_markup = InlineKeyboardMarkup(inline_keyboard=[
 async def fetch_users(session, user_id):
     tokens = get_tokens(user_id)
     if not tokens:
-        return []
+        return None, "No MEEFF access token found. Please add one using the Account menu."
 
     meeff_access_token = tokens[0]["token"]  # Use the first token for now
     async with session.get(
@@ -48,14 +48,19 @@ async def fetch_users(session, user_id):
         }
     ) as response:
         json_response = await response.json()
-        logging.info(f"Fetch Users Response: {json_response}")
         if response.status == 200:
-            return json_response.get("users", [])
-        return []
+            return json_response.get("users", []), None
+        return None, f"Error fetching users: {json_response.get('message', 'Unknown error')}"
 
 # Process users
 async def process_users(session, user_id, users):
     global running
+
+    tokens = get_tokens(user_id)
+    if not tokens:
+        return "No MEEFF access token found. Please add one using the Account menu."
+
+    meeff_access_token = tokens[0]["token"]
 
     for user in users:
         if not running:
@@ -64,20 +69,15 @@ async def process_users(session, user_id, users):
         async with session.get(
             f"https://api.meeff.com/user/undoableAnswer/v5/?userId={user_id}&isOkay=1",
             headers={
-                "meeff-access-token": get_tokens(user_id)[0]['token'],
+                "meeff-access-token": meeff_access_token,
                 "Connection": "keep-alive",
             }
         ) as response:
             json_res = await response.json()
             if "errorCode" in json_res and json_res["errorCode"] == "LikeExceeded":
-                await bot.edit_message_text(
-                    chat_id=user_chat_id,
-                    message_id=status_message_id,
-                    text="Meeff:\nDaily like limit reached. Stopping.",
-                    reply_markup=None
-                )
-                running = False
-                return
+                return "You've reached the daily limit of likes. Processing will stop."
+
+    return None
 
 # Run requests periodically
 async def run_requests(user_id):
@@ -87,7 +87,17 @@ async def run_requests(user_id):
     async with aiohttp.ClientSession() as session:
         while running:
             try:
-                users = await fetch_users(session, user_id)
+                users, error = await fetch_users(session, user_id)
+                if error:
+                    await bot.edit_message_text(
+                        chat_id=user_chat_id,
+                        message_id=status_message_id,
+                        text=f"Meeff:\n{error}",
+                        reply_markup=None
+                    )
+                    running = False
+                    return
+
                 if not users:
                     await bot.edit_message_text(
                         chat_id=user_chat_id,
@@ -96,7 +106,17 @@ async def run_requests(user_id):
                         reply_markup=stop_markup
                     )
                 else:
-                    await process_users(session, user_id, users)
+                    error = await process_users(session, user_id, users)
+                    if error:
+                        await bot.edit_message_text(
+                            chat_id=user_chat_id,
+                            message_id=status_message_id,
+                            text=f"Meeff:\n{error}",
+                            reply_markup=None
+                        )
+                        running = False
+                        return
+
                     count += 1
                     await bot.edit_message_text(
                         chat_id=user_chat_id,
@@ -149,47 +169,8 @@ async def callback_handler(callback_query: CallbackQuery):
                 reply_markup=start_markup
             )
             await callback_query.answer("Requests stopped.")
-    elif callback_query.data == "account":
-        user_id = callback_query.from_user.id
-        tokens = get_tokens(user_id)
 
-        if tokens:
-            accounts = "\n".join(f"- {t['token'][:10]}..." for t in tokens)
-            await callback_query.message.edit_text(
-                f"Your Accounts:\n{accounts}\n\nSend a new access token to add it.",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="Back", callback_data="back_to_menu")]
-                ])
-            )
-        else:
-            await callback_query.message.edit_text(
-                "You have no saved accounts. Send a new access token to add it.",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="Back", callback_data="back_to_menu")]
-                ])
-            )
-        await callback_query.answer()
-    elif callback_query.data == "back_to_menu":
-        await callback_query.message.edit_text(
-            "Welcome! Use the buttons below to navigate.",
-            reply_markup=start_markup
-        )
-        await callback_query.answer()
-
-# Handle new tokens sent by the user
-@router.message()
-async def handle_new_token(message: types.Message):
-    user_id = message.from_user.id
-    token = message.text.strip()
-
-    if len(token) < 10:
-        await message.reply("Invalid token. Please try again.")
-        return
-
-    set_token(user_id, token)
-    await message.reply("Your access token has been saved.")
-
-# Main function to start the bot
+# Polling for the bot
 async def main():
     dp.include_router(router)
     await dp.start_polling(bot)

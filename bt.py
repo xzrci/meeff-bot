@@ -8,7 +8,7 @@ from aiogram.types.callback_query import CallbackQuery
 from db_helper import set_token, get_tokens, set_current_account, get_current_account, delete_token
 
 # Tokens
-API_TOKEN = "7780275950:AAFZoZamRNCATEapl6rg2hmrUCbSCpXufyk"
+API_TOKEN = "8088969339:AAGd7a06rPhBhWQ0Q0Yxo8iIEpBQ3_sFzwY"
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -60,6 +60,7 @@ async def account_callback_handler(callback_query: CallbackQuery):
 
     if callback_query.data == "account":
         tokens = get_tokens(user_id)
+        current_token = get_current_account(user_id)
 
         if not tokens:
             await callback_query.message.edit_text(
@@ -69,7 +70,7 @@ async def account_callback_handler(callback_query: CallbackQuery):
             return
 
         buttons = [
-            [InlineKeyboardButton(text=f"Account {i + 1}", callback_data=f"view_account_{i}")]
+            [InlineKeyboardButton(text=f"Account {i + 1}{' (Current)' if t['token'] == current_token else ''}", callback_data=f"view_account_{i}")]
             for i, t in enumerate(tokens)
         ]
         buttons.append([InlineKeyboardButton(text="Back", callback_data="back_to_menu")])
@@ -182,7 +183,60 @@ async def handle_new_token(message: types.Message):
     # Save token and userId to the database
     set_token(user_id, token, meeff_user_id)
     await message.reply("Your access token has been saved.")
-    
+
+# Handle start/stop requests
+async def run_requests():
+    global running, user_chat_id, status_message_id
+    count = 0
+    async with aiohttp.ClientSession() as session:
+        while running:
+            try:
+                # Add your request processing logic here
+                await asyncio.sleep(5)
+                count += 1
+                await bot.edit_message_text(
+                    chat_id=user_chat_id,
+                    message_id=status_message_id,
+                    text=f"Processed batch: {count}",
+                    reply_markup=stop_markup
+                )
+            except Exception as e:
+                logging.error(f"Error during processing: {e}")
+                await bot.edit_message_text(
+                    chat_id=user_chat_id,
+                    message_id=status_message_id,
+                    text=f"An error occurred: {str(e)}",
+                    reply_markup=None
+                )
+                break
+
+@router.callback_query()
+async def callback_handler(callback_query: CallbackQuery):
+    global running, status_message_id
+
+    if callback_query.data == "start":
+        if running:
+            await callback_query.answer("Requests are already running!")
+        else:
+            running = True
+            status_message = await callback_query.message.edit_text(
+                "Initializing requests...",
+                reply_markup=stop_markup
+            )
+            status_message_id = status_message.message_id
+            asyncio.create_task(run_requests())
+            await callback_query.answer("Requests started!")
+    elif callback_query.data == "stop":
+        if not running:
+            await callback_query.answer("Requests are not running!")
+        else:
+            running = False
+            await callback_query.message.edit_text(
+                "Requests stopped. Use the button below to start again.",
+                reply_markup=start_markup
+            )
+            await callback_query.answer("Requests stopped.")
+
 # Start polling
 async def main():
     dp.include_router(router)

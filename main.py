@@ -1,25 +1,23 @@
 import asyncio
 import aiohttp
-from aiogram import Bot, Dispatcher, Router, types
+from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.filters import Command
-from aiogram.types.callback_query import CallbackQuery
+from aiogram.utils import executor
 
 API_TOKEN = "7653663622:AAESlxbzSCDdxlOt1zf0_yYOHyxD_xJLfvY"
 MEEFF_ACCESS_TOKEN = "92K26S09E6QFT7WGH2H3P0UJ62O5E61WTIMAOO507BA2B3XN3X2SF1KYFFK1V8DVACGK9501ST1X0A130AEN4O32ACQ0QFS30MDTXTNN34DRG0WJI5KX0FTDJN690VWIEUUKXJJDUJYWZPF86UCYUAHJSU0RG8PITK6NNMLQB248Z99CYB0IQ7X6BFSI72MLN4NCF90UOXO66MDV9VJZOEAG2AG82PD4I7N9T1XDI4W7C5JTIZSE7VNRXYT7NXVY"
+ADMIN_ID = 6387028671  # Admin ID
 
 bot = Bot(token=API_TOKEN)
-router = Router()
-dp = Dispatcher()
+dp = Dispatcher(bot)
 
 running = False
 
-# Inline keyboard setup
-start_button = InlineKeyboardButton(text="Start Requests", callback_data="start")
-stop_button = InlineKeyboardButton(text="Stop Requests", callback_data="stop")
-start_stop_markup = InlineKeyboardMarkup(inline_keyboard=[
-    [start_button, stop_button]
-])
+# Start button
+start_stop_markup = InlineKeyboardMarkup(row_width=2)
+start_button = InlineKeyboardButton("Start Requests", callback_data="start")
+stop_button = InlineKeyboardButton("Stop Requests", callback_data="stop")
+start_stop_markup.add(start_button, stop_button)
 
 async def fetch_users(session):
     async with session.get(
@@ -32,7 +30,8 @@ async def fetch_users(session):
         if response.status == 200:
             json_response = await response.json()
             return json_response.get("users", [])
-    return []
+        else:
+            return {"error": "Failed to fetch users", "status_code": response.status}
 
 async def process_users(session, users):
     global running
@@ -48,6 +47,10 @@ async def process_users(session, users):
             }
         ) as response:
             json_res = await response.json()
+            if "errorCode" in json_res:
+                await bot.send_message(ADMIN_ID, f"Error: {json_res['errorCode']} - {json_res['errorMessage']}")
+            else:
+                await bot.send_message(ADMIN_ID, f"Processed user: {user_id} with response: {json_res}")
             print(json_res)
 
 async def run_requests():
@@ -56,17 +59,22 @@ async def run_requests():
     async with aiohttp.ClientSession() as session:
         while running:
             users = await fetch_users(session)
+            if "error" in users:
+                await bot.send_message(ADMIN_ID, f"Error occurred while fetching users: {users['error']}")
+                running = False
+                break
             await process_users(session, users)
             count += 1
             await asyncio.sleep(5)
             print(f"Processed batch: {count}")
+            await bot.send_message(ADMIN_ID, f"Processed batch: {count}")
 
-@router.message(Command("start"))
+@dp.message_handler(commands=["start"])
 async def start_command(message: types.Message):
     await message.answer("Welcome! Use the buttons below to start or stop requests.", reply_markup=start_stop_markup)
 
-@router.callback_query()
-async def callback_handler(callback_query: CallbackQuery):
+@dp.callback_query_handler(lambda c: c.data in ["start", "stop"])
+async def callback_handler(callback_query: types.CallbackQuery):
     global running
 
     if callback_query.data == "start":
@@ -75,6 +83,7 @@ async def callback_handler(callback_query: CallbackQuery):
         else:
             running = True
             await callback_query.answer("Started processing requests!")
+            await bot.send_message(ADMIN_ID, "Started processing requests!")
             asyncio.create_task(run_requests())
     elif callback_query.data == "stop":
         if not running:
@@ -82,10 +91,7 @@ async def callback_handler(callback_query: CallbackQuery):
         else:
             running = False
             await callback_query.answer("Stopped processing requests!")
-
-async def main():
-    dp.include_router(router)
-    await dp.start_polling(bot)
+            await bot.send_message(ADMIN_ID, "Stopped processing requests!")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    executor.start_polling(dp, skip_updates=True)

@@ -17,12 +17,15 @@ dp = Dispatcher()
 # Global state variables
 running = False
 user_chat_id = None
-status_message_id = None  # To store the ID of the message being edited
+status_message_id = None  # To track the message being updated
 
-# Inline keyboard setup
-stop_button = InlineKeyboardButton(text="Stop Requests", callback_data="stop")
-control_markup = InlineKeyboardMarkup(inline_keyboard=[
-    [stop_button]
+# Inline keyboards
+start_markup = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="Start Requests", callback_data="start")]
+])
+
+stop_markup = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="Stop Requests", callback_data="stop")]
 ])
 
 # Fetch users from MEEFF API
@@ -55,7 +58,7 @@ async def process_users(session, users):
         ) as response:
             json_res = await response.json()
 
-            # Check if the "LikeExceeded" error occurs
+            # Check for "LikeExceeded" error
             if "errorCode" in json_res and json_res["errorCode"] == "LikeExceeded":
                 if user_chat_id:
                     await bot.edit_message_text(
@@ -64,10 +67,9 @@ async def process_users(session, users):
                         text="Meeff:\nYou've reached the daily limit of likes. Processing will stop. Please try again tomorrow.",
                         reply_markup=None
                     )
-                print(json_res)  # Log the error message
                 running = False
-                return True  # Signal that the limit was exceeded
-    return False
+                return True  # Stop processing
+    return False  # Continue processing
 
 # Run requests periodically
 async def run_requests():
@@ -82,7 +84,7 @@ async def run_requests():
                         chat_id=user_chat_id,
                         message_id=status_message_id,
                         text=f"Meeff:\nProcessed batch: {count}, Users fetched: 0",
-                        reply_markup=control_markup
+                        reply_markup=stop_markup
                     )
                 else:
                     limit_exceeded = await process_users(session, users)
@@ -94,7 +96,7 @@ async def run_requests():
                         chat_id=user_chat_id,
                         message_id=status_message_id,
                         text=f"Meeff:\nProcessed batch: {count}, Users fetched: {len(users)}",
-                        reply_markup=control_markup
+                        reply_markup=stop_markup
                     )
                 await asyncio.sleep(5)
             except Exception as e:
@@ -109,31 +111,35 @@ async def run_requests():
 # Command handler to start the bot
 @router.message(Command("start"))
 async def start_command(message: types.Message):
-    global user_chat_id, status_message_id
+    global user_chat_id
     user_chat_id = message.chat.id
-    status_message = await message.answer("Meeff:\nInitializing requests...", reply_markup=control_markup)
-    status_message_id = status_message.message_id
+    await message.answer("Welcome! Use the button below to start requests.", reply_markup=start_markup)
 
-    # Start processing
-    global running
-    running = True
-    asyncio.create_task(run_requests())
-
-# Callback query handler for stop button
+# Callback query handler for start/stop buttons
 @router.callback_query()
 async def callback_handler(callback_query: CallbackQuery):
-    global running
+    global running, status_message_id
 
-    if callback_query.data == "stop":
+    if callback_query.data == "start":
+        if running:
+            await callback_query.answer("Requests are already running!")
+        else:
+            running = True
+            status_message = await callback_query.message.edit_text(
+                "Meeff:\nInitializing requests...",
+                reply_markup=stop_markup
+            )
+            status_message_id = status_message.message_id
+            asyncio.create_task(run_requests())
+            await callback_query.answer("Requests started!")
+    elif callback_query.data == "stop":
         if not running:
             await callback_query.answer("Requests are not running!")
         else:
             running = False
-            await bot.edit_message_text(
-                chat_id=callback_query.message.chat.id,
-                message_id=callback_query.message.message_id,
-                text="Meeff:\nRequests stopped. Use /start to begin again.",
-                reply_markup=None
+            await callback_query.message.edit_text(
+                "Meeff:\nRequests stopped. Use the button below to start again.",
+                reply_markup=start_markup
             )
             await callback_query.answer("Requests stopped.")
 

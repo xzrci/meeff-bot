@@ -8,7 +8,7 @@ from aiogram.types.callback_query import CallbackQuery
 from db_helper import set_token, get_tokens, set_current_account, get_current_account, delete_token
 
 # Tokens
-API_TOKEN = "8088969339:AAGd7a06rPhBhWQ0Q0Yxo8iIEpBQ3_sFzwY"
+API_TOKEN = "7780275950:AAFZoZamRNCATEapl6rg2hmrUCbSCpXufyk"
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -158,7 +158,6 @@ async def start_command(message: types.Message):
 # Handle new token submission
 @router.message()
 async def handle_new_token(message: types.Message):
-    # Ignore commands
     if message.text.startswith("/"):
         return
 
@@ -169,7 +168,6 @@ async def handle_new_token(message: types.Message):
         await message.reply("Invalid token. Please try again.")
         return
 
-    # Fetch userId from MEEFF API
     account_data, error = await fetch_account_details(token)
     if error:
         await message.reply(f"Failed to validate token. Error: {error}")
@@ -180,7 +178,6 @@ async def handle_new_token(message: types.Message):
         await message.reply("Failed to retrieve account information. Please check your token.")
         return
 
-    # Save token and userId to the database
     set_token(user_id, token, meeff_user_id)
     await message.reply("Your access token has been saved.")
 
@@ -191,7 +188,18 @@ async def run_requests():
     async with aiohttp.ClientSession() as session:
         while running:
             try:
-                # Add your request processing logic here
+                current_token = get_current_account(user_chat_id)
+                if not current_token:
+                    await bot.edit_message_text(
+                        chat_id=user_chat_id,
+                        message_id=status_message_id,
+                        text="No current account set. Stopping requests.",
+                        reply_markup=None
+                    )
+                    running = False
+                    return
+                logging.info(f"Using token: {current_token}")
+                # Add request logic here
                 await asyncio.sleep(5)
                 count += 1
                 await bot.edit_message_text(

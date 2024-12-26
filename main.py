@@ -1,23 +1,22 @@
-import os
 import asyncio
 import aiohttp
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.types.callback_query import CallbackQuery
-from dotenv import load_dotenv  # Use for environment variables
 
-# Load environment variables
-load_dotenv()
-API_TOKEN = os.getenv("API_TOKEN")
-MEEFF_ACCESS_TOKEN = os.getenv("MEEFF_ACCESS_TOKEN")
+# Tokens
+API_TOKEN = "7653663622:AAESlxbzSCDdxlOt1zf0_yYOHyxD_xJLfvY"
+MEEFF_ACCESS_TOKEN = "92K26S09E6QFT7WGH2P0UJ62O5E61WTIMAOO507BA2B3XN3X2SF1KYFFK1V8DVACGK9501ST1X0A130AEN4O32ACQ0QFS30MDTXTNN34DRG0WJI5KX0FTDJN690VWIEUUKXJJDUJYWZPF86UCYUAHJSU0RG8PITK6NNMLQB248Z99CYB0IQ7X6BFSI72MLN4NCF90UOXO66MDV9VJZOEAG2AG82PD4I7N9T1XDI4W7C5JTIZSE7VNRXYT7NXVY"
 
+# Initialize bot and dispatcher
 bot = Bot(token=API_TOKEN)
 router = Router()
 dp = Dispatcher()
 
+# Global state variables
 running = False
-admin_chat_id = None  # Set your Telegram chat ID here to receive logs (optional)
+user_chat_id = None  # To store the user's chat ID for sending updates
 
 # Inline keyboard setup
 start_button = InlineKeyboardButton(text="Start Requests", callback_data="start")
@@ -26,61 +25,40 @@ start_stop_markup = InlineKeyboardMarkup(inline_keyboard=[
     [start_button, stop_button]
 ])
 
+# Fetch users from MEEFF API
 async def fetch_users(session):
-    try:
-        async with session.get(
-            "https://api.meeff.com/user/explore/v2/?lat=-3.7895238&lng=-38.5327365",
-            headers={
-                "meeff-access-token": MEEFF_ACCESS_TOKEN,
-                "Connection": "keep-alive",
-            }
-        ) as response:
-            if response.status == 200:
-                json_response = await response.json()
-                return json_response.get("users", [])
-    except Exception as e:
-        print(f"Error fetching users: {e}")
+    async with session.get(
+        "https://api.meeff.com/user/explore/v2/?lat=-3.7895238&lng=-38.5327365",
+        headers={
+            "meeff-access-token": MEEFF_ACCESS_TOKEN,
+            "Connection": "keep-alive",
+        }
+    ) as response:
+        if response.status == 200:
+            json_response = await response.json()
+            return json_response.get("users", [])
     return []
 
+# Process each user
 async def process_users(session, users):
     global running
     for user in users:
         if not running:
             break
         user_id = user.get("_id")
-        try:
-            async with session.get(
-                f"https://api.meeff.com/user/undoableAnswer/v5/?userId={user_id}&isOkay=1",
-                headers={
-                    "meeff-access-token": MEEFF_ACCESS_TOKEN,
-                    "Connection": "keep-alive",
-                }
-            ) as response:
-                if response.status == 200:
-                    json_res = await response.json()
-                    if json_res.get("errorCode") == "LikeExceeded":
-                        error_message = json_res.get("errorMessage", "Limit exceeded.")
-                        prices = json_res.get("prices", {})
-                        log_message = (
-                            f"{json_res}\n"
-                            f"Error: {error_message}\n"
-                            f"Prices: {prices}\n"
-                            "Stopping bot..."
-                        )
-                        print(log_message)  # Log on the server
-                        if admin_chat_id:
-                            await bot.send_message(
-                                chat_id=admin_chat_id,
-                                text=log_message
-                            )  # Notify admin on Telegram
-                        running = False
-                        return
-                    print(json_res)  # Log successful response
-        except Exception as e:
-            print(f"Error processing user {user_id}: {e}")
+        async with session.get(
+            f"https://api.meeff.com/user/undoableAnswer/v5/?userId={user_id}&isOkay=1",
+            headers={
+                "meeff-access-token": MEEFF_ACCESS_TOKEN,
+                "Connection": "keep-alive",
+            }
+        ) as response:
+            json_res = await response.json()
+            print(json_res)  # You can log it to the console if needed
 
+# Run requests periodically
 async def run_requests():
-    global running
+    global running, user_chat_id
     count = 0
     async with aiohttp.ClientSession() as session:
         while running:
@@ -88,17 +66,28 @@ async def run_requests():
                 users = await fetch_users(session)
                 await process_users(session, users)
                 count += 1
-                await asyncio.sleep(5)
-                print(f"Processed batch: {count}")
-            except Exception as e:
-                print(f"Error in run_requests: {e}")
 
+                # Send progress updates to the user
+                if user_chat_id:
+                    await bot.send_message(
+                        user_chat_id,
+                        f"Processed batch: {count}, Users fetched: {len(users)}"
+                    )
+
+                await asyncio.sleep(5)
+            except Exception as e:
+                if user_chat_id:
+                    await bot.send_message(user_chat_id, f"An error occurred: {str(e)}")
+                break
+
+# Command handler to start the bot
 @router.message(Command("start"))
 async def start_command(message: types.Message):
-    global admin_chat_id
-    admin_chat_id = message.chat.id  # Save the admin's chat ID
+    global user_chat_id
+    user_chat_id = message.chat.id  # Save the user's chat ID
     await message.answer("Welcome! Use the buttons below to start or stop requests.", reply_markup=start_stop_markup)
 
+# Callback query handler for start/stop buttons
 @router.callback_query()
 async def callback_handler(callback_query: CallbackQuery):
     global running
@@ -117,9 +106,11 @@ async def callback_handler(callback_query: CallbackQuery):
             running = False
             await callback_query.answer("Stopped processing requests!")
 
+# Main function to start the bot
 async def main():
     dp.include_router(router)
     await dp.start_polling(bot)
 
+# Entry point
 if __name__ == "__main__":
     asyncio.run(main())

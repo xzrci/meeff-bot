@@ -8,7 +8,7 @@ from aiogram.types.callback_query import CallbackQuery
 from db_helper import set_token, get_tokens
 
 # Tokens
-API_TOKEN = "your_telegram_bot_token"
+API_TOKEN = "7780275950:AAFZoZamRNCATEapl6rg2hmrUCbSCpXufyk"
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")

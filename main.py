@@ -3,8 +3,6 @@ import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
-from aiogram.fsm.context import FSMContext
-from aiogram.client.session import ClientSession
 from aiogram import Router
 
 API_TOKEN = "7653663622:AAESlxbzSCDdxlOt1zf0_yYOHyxD_xJLfvY"
@@ -86,9 +84,6 @@ async def callback_handler(callback_query: types.CallbackQuery):
 
 if __name__ == "__main__":
     # New method to start the bot in aiogram v3.x
-    from aiogram import Bot, Dispatcher
-    from aiogram.types import ParseMode
-
     async def on_start():
         await dp.start_polling()
 

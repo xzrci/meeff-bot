@@ -8,7 +8,7 @@ from aiogram.types.callback_query import CallbackQuery
 from db_helper import set_token, get_tokens, set_current_account, get_current_account, delete_token
 
 # Tokens
-API_TOKEN = "7653663622:AAESlxbzSCDdxlOt1zf0_yYOHyxD_xJLfvY"
+API_TOKEN = "8088969339:AAGd7a06rPhBhWQ0Q0Yxo8iIEpBQ3_sFzwY"
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -81,16 +81,19 @@ async def run_requests():
                 # Retrieve the current account token from the database
                 token = get_current_account(user_chat_id)
                 if not token:
+                    logging.error("No active account token found.")
                     await bot.edit_message_text(
                         chat_id=user_chat_id,
                         message_id=status_message_id,
-                        text="No active account found. Please set an account.",
+                        text="No active account found. Please set an account before starting requests.",
                         reply_markup=None
                     )
                     running = False
                     return
+
                 logging.info(f"Using token: {token}")
 
+                # Fetch users
                 users = await fetch_users(session, token)
                 if not users:
                     await bot.edit_message_text(
@@ -100,8 +103,10 @@ async def run_requests():
                         reply_markup=stop_markup
                     )
                 else:
+                    # Process users
                     limit_exceeded = await process_users(session, users, token)
                     if limit_exceeded:
+                        logging.info("Daily like limit reached.")
                         await bot.edit_message_text(
                             chat_id=user_chat_id,
                             message_id=status_message_id,
@@ -119,6 +124,7 @@ async def run_requests():
                         reply_markup=stop_markup
                     )
                 await asyncio.sleep(5)
+
             except Exception as e:
                 logging.error(f"Error during processing: {e}")
                 await bot.edit_message_text(
@@ -127,6 +133,7 @@ async def run_requests():
                     text=f"Meeff:\nAn error occurred: {e}",
                     reply_markup=None
                 )
+                running = False
                 break
 
 # Command handler to start the bot
@@ -155,7 +162,7 @@ async def handle_new_token(message: types.Message):
 
 # Manage accounts via callback queries
 @router.callback_query()
-async def manage_accounts(callback_query: CallbackQuery):
+async def callback_handler(callback_query: CallbackQuery):
     global running, status_message_id
 
     user_id = callback_query.from_user.id
@@ -185,6 +192,45 @@ async def manage_accounts(callback_query: CallbackQuery):
 
         set_current_account(user_id, tokens[index]["token"])
         await callback_query.message.edit_text("Account set as active. You can now start requests.")
+
+    elif callback_query.data == "start":
+        if running:
+            await callback_query.answer("Requests are already running!")
+            logging.info("Attempted to start requests, but they are already running.")
+        else:
+            running = True
+            try:
+                status_message = await callback_query.message.edit_text(
+                    "Meeff:\nInitializing requests...",
+                    reply_markup=stop_markup
+                )
+                status_message_id = status_message.message_id
+                asyncio.create_task(run_requests())
+                await callback_query.answer("Requests started!")
+                logging.info("Requests started successfully.")
+            except Exception as e:
+                logging.error(f"Error while starting requests: {e}")
+                await callback_query.message.edit_text(
+                    "Meeff:\nFailed to start requests. Please try again later.",
+                    reply_markup=start_markup
+                )
+                running = False
+
+    elif callback_query.data == "stop":
+        if not running:
+            await callback_query.answer("Requests are not running!")
+            logging.info("Attempted to stop requests, but they are not running.")
+        else:
+            running = False
+            try:
+                await callback_query.message.edit_text(
+                    "Meeff:\nRequests stopped. Use the button below to start again.",
+                    reply_markup=start_markup
+                )
+                await callback_query.answer("Requests stopped.")
+                logging.info("Requests stopped successfully.")
+            except Exception as e:
+                logging.error(f"Error while stopping requests: {e}")
 
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text(

@@ -14,11 +14,12 @@ dp = Dispatcher()
 
 running = False
 
-# Start button
-start_stop_markup = InlineKeyboardMarkup(row_width=2)
-start_button = InlineKeyboardButton("Start Requests", callback_data="start")
-stop_button = InlineKeyboardButton("Stop Requests", callback_data="stop")
-start_stop_markup.add(start_button, stop_button)
+# Inline keyboard setup
+start_button = InlineKeyboardButton(text="Start Requests", callback_data="start")
+stop_button = InlineKeyboardButton(text="Stop Requests", callback_data="stop")
+start_stop_markup = InlineKeyboardMarkup(inline_keyboard=[
+    [start_button, stop_button]
+])
 
 async def fetch_users(session):
     async with session.get(

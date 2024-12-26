@@ -38,6 +38,7 @@ async def fetch_users(session):
 
 async def process_users(session, users):
     global running, status_message_id
+    results = []
     for user in users:
         if not running:
             break
@@ -50,19 +51,11 @@ async def process_users(session, users):
             }
         ) as response:
             json_res = await response.json()
-            # Log message for processing
-            log_message = f"Processing User ID: {user_id}\nResponse: {json_res}"
-
-            # Update processing state message
-            if status_message_id:
-                await bot.edit_message_text(
-                    chat_id=user_id,
-                    message_id=status_message_id,
-                    text=log_message
-                )
+            error_code = json_res.get("errorCode", "None")
+            results.append(f"{user_id}\n{{ errorCode: {error_code} }}")
 
             # Handle daily limit exceeded case
-            if json_res.get("errorCode") == "LikeExceeded":
+            if error_code == "LikeExceeded":
                 limit_message = (
                     "Daily limit of likes reached. "
                     "Please try again tomorrow.\n"
@@ -76,21 +69,27 @@ async def process_users(session, users):
                 running = False
                 break
 
+    # Return results for this batch
+    return results
+
 async def run_requests():
     global running, status_message_id
     count = 0
     async with aiohttp.ClientSession() as session:
         while running:
             users = await fetch_users(session)
-            await process_users(session, users)
+            results = await process_users(session, users)
             count += 1
-            # Update the status message with batch processing information
+
+            # Update the status message with detailed results
             if status_message_id:
+                detailed_result = "\n".join(results)
                 await bot.edit_message_text(
                     chat_id=user_id,
                     message_id=status_message_id,
-                    text=f"Processed batch: {count}\nFetching more users..."
+                    text=f"Processed batch: {count}\n{detailed_result}"
                 )
+
             await asyncio.sleep(5)
 
 @router.message(Command("start"))

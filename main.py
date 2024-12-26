@@ -13,8 +13,7 @@ router = Router()
 dp = Dispatcher()
 
 running = False
-user_id = None  # Store the user ID to send logs
-status_message_id = None  # Message ID to edit processing state
+user_id = None  # To keep track of the user who started the bot
 
 # Inline keyboard setup
 start_button = InlineKeyboardButton(text="Start Requests", callback_data="start")
@@ -37,7 +36,7 @@ async def fetch_users(session):
     return []
 
 async def process_users(session, users):
-    global running, status_message_id
+    global running
     results = []
     for user in users:
         if not running:
@@ -52,95 +51,49 @@ async def process_users(session, users):
         ) as response:
             json_res = await response.json()
             error_code = json_res.get("errorCode", None)
-
-            if error_code:  # If there's an error
-                results.append(f"{user_id}\n{{ errorCode: {error_code} }}")
-
-                # Handle daily limit exceeded case
-                if error_code == "LikeExceeded":
-                    limit_message = (
-                        "Daily limit of likes reached. "
-                        "Please try again tomorrow.\n"
-                        f"Details: {json_res.get('errorMessage', 'No additional info')}"
-                    )
-                    await bot.edit_message_text(
-                        chat_id=user_id,
-                        message_id=status_message_id,
-                        text=limit_message
-                    )
-                    running = False
-                    break
-            else:  # If no error
-                results.append(f"{user_id} OK")
-
-    # Return results for this batch
+            if error_code:
+                results.append(f"{user_id} - Error: {error_code}")
+            else:
+                results.append(f"{user_id} - OK")
     return results
 
 async def run_requests():
-    global running, status_message_id
+    global running, user_id
     count = 0
     async with aiohttp.ClientSession() as session:
         while running:
             users = await fetch_users(session)
-            if not users:  # No users fetched
-                await bot.edit_message_text(
-                    chat_id=user_id,
-                    message_id=status_message_id,
-                    text=f"Processed batch: {count}\nNo users found. Retrying..."
-                )
-                await asyncio.sleep(5)
-                continue
-
             results = await process_users(session, users)
             count += 1
 
-            # Update the status message with detailed results
-            if status_message_id:
-                detailed_result = "\n".join(results)
-                await bot.edit_message_text(
-                    chat_id=user_id,
-                    message_id=status_message_id,
-                    text=f"Processed batch: {count}\n{detailed_result}"
-                )
+            # Send or update processing results to the user
+            result_message = f"Processed batch: {count}\n\n" + "\n".join(results)
+            await bot.send_message(chat_id=user_id, text=result_message)
 
             await asyncio.sleep(5)
 
 @router.message(Command("start"))
 async def start_command(message: types.Message):
-    global user_id, status_message_id
-    user_id = message.chat.id  # Save the user ID
+    global user_id
+    user_id = message.chat.id  # Save the user's chat ID
     await message.answer("Welcome! Use the buttons below to start or stop requests.", reply_markup=start_stop_markup)
 
 @router.callback_query()
 async def callback_handler(callback_query: CallbackQuery):
-    global running, status_message_id
+    global running
 
     if callback_query.data == "start":
         if running:
             await callback_query.answer("Requests are already running!")
         else:
             running = True
-            # Send a new status message and save its ID
-            status_message = await bot.send_message(
-                chat_id=callback_query.message.chat.id,
-                text="Starting processing requests..."
-            )
-            status_message_id = status_message.message_id
             await callback_query.answer("Started processing requests!")
             asyncio.create_task(run_requests())
-
     elif callback_query.data == "stop":
         if not running:
             await callback_query.answer("Requests are not running!")
         else:
             running = False
-            # Update the status message to indicate stopping
-            if status_message_id:
-                await bot.edit_message_text(
-                    chat_id=callback_query.message.chat.id,
-                    message_id=status_message_id,
-                    text="Processing stopped."
-                )
             await callback_query.answer("Stopped processing requests!")
 
 async def main():

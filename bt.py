@@ -6,6 +6,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.types.callback_query import CallbackQuery
 from db_helper import set_token, get_tokens, set_current_account, get_current_account, delete_token
+
 # Tokens
 API_TOKEN = "8088969339:AAGd7a06rPhBhWQ0Q0Yxo8iIEpBQ3_sFzwY"
 
@@ -53,7 +54,6 @@ async def fetch_account_details(token):
             return data, None
 
 # Handle account button actions
-# Handle account button actions
 @router.callback_query()
 async def account_callback_handler(callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
@@ -88,10 +88,7 @@ async def account_callback_handler(callback_query: CallbackQuery):
             return
 
         token = tokens[account_index]["token"]
-        # Assuming you store userId along with token in the database
-        user_id = "6725beb14fbd9c000108e52c"  # Replace with dynamic retrieval from your DB if needed
-
-        account_data, error = await fetch_account_details(token, user_id)
+        account_data, error = await fetch_account_details(token)
 
         if error:
             await callback_query.message.edit_text(f"Unable to fetch account details. Error: {error}")
@@ -151,7 +148,6 @@ async def account_callback_handler(callback_query: CallbackQuery):
             reply_markup=start_markup
         )
 
-
 @router.message(Command("start"))
 async def start_command(message: types.Message):
     global user_chat_id
@@ -173,7 +169,7 @@ async def handle_new_token(message: types.Message):
         return
 
     # Fetch userId from MEEFF API
-    account_data, error = await fetch_account_details(token, "")
+    account_data, error = await fetch_account_details(token)
     if error:
         await message.reply(f"Failed to validate token. Error: {error}")
         return

@@ -91,26 +91,26 @@ async def account_callback_handler(callback_query: CallbackQuery):
         account_data, error = await fetch_account_details(token)
 
         if error:
-            await callback_query.message.edit_text(f"Failed to fetch account details: {error}")
-            return
-
-        account_info = account_data.get("user", {})
-        details = (
-            f"Name: {account_info.get('name', 'N/A')}\n"
-            f"Email: {account_info.get('email', 'N/A')}\n"
-            f"Gender: {'Male' if account_info.get('gender') else 'Female'}\n"
-            f"Description: {account_info.get('description', 'N/A')}\n"
-            f"Nationality: {account_info.get('nationalityCode', 'N/A')}\n"
-            f"Ruby: {account_info.get('ruby', 0)}\n"
-        )
+            account_info = f"Unable to fetch account details. Error: {error}"
+        else:
+            account_info = account_data.get("user", {})
+            account_info = (
+                f"Name: {account_info.get('name', 'N/A')}\n"
+                f"Email: {account_info.get('email', 'N/A')}\n"
+                f"Gender: {'Male' if account_info.get('gender') else 'Female'}\n"
+                f"Description: {account_info.get('description', 'N/A')}\n"
+                f"Nationality: {account_info.get('nationalityCode', 'N/A')}\n"
+                f"Ruby: {account_info.get('ruby', 0)}\n"
+            )
 
         buttons = [
             [InlineKeyboardButton(text="Set as Current", callback_data=f"set_current_{account_index}")],
+            [InlineKeyboardButton(text="Delete Account", callback_data=f"delete_account_{account_index}")],
             [InlineKeyboardButton(text="Back to Accounts", callback_data="account")]
         ]
         markup = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-        await callback_query.message.edit_text(details, reply_markup=markup)
+        await callback_query.message.edit_text(account_info, reply_markup=markup)
     elif callback_query.data.startswith("set_current_"):
         account_index = int(callback_query.data.split("_")[-1])
         tokens = get_tokens(user_id)
@@ -124,6 +124,21 @@ async def account_callback_handler(callback_query: CallbackQuery):
 
         await callback_query.message.edit_text(
             "This account has been set as the current account.",
+            reply_markup=back_markup
+        )
+    elif callback_query.data.startswith("delete_account_"):
+        account_index = int(callback_query.data.split("_")[-1])
+        tokens = get_tokens(user_id)
+
+        if account_index >= len(tokens):
+            await callback_query.answer("Invalid account selected.")
+            return
+
+        token = tokens[account_index]["token"]
+        delete_token(user_id, token)
+
+        await callback_query.message.edit_text(
+            "The account has been deleted.",
             reply_markup=back_markup
         )
     elif callback_query.data == "back_to_menu":

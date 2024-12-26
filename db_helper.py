@@ -22,3 +22,7 @@ def set_current_account(user_id, token):
 def get_current_account(user_id):
     record = db.current_account.find_one({"user_id": user_id})
     return record["token"] if record else None
+
+# Delete a token for a user
+def delete_token(user_id, token):
+    db.tokens.delete_one({"user_id": user_id, "token": token})

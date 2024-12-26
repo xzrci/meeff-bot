@@ -2,13 +2,17 @@ import asyncio
 import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.utils import executor
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.client.session import ClientSession
+from aiogram import Router
 
 API_TOKEN = "7653663622:AAESlxbzSCDdxlOt1zf0_yYOHyxD_xJLfvY"
 MEEFF_ACCESS_TOKEN = "92K26S09E6QFT7WGH2H3P0UJ62O5E61WTIMAOO507BA2B3XN3X2SF1KYFFK1V8DVACGK9501ST1X0A130AEN4O32ACQ0QFS30MDTXTNN34DRG0WJI5KX0FTDJN690VWIEUUKXJJDUJYWZPF86UCYUAHJSU0RG8PITK6NNMLQB248Z99CYB0IQ7X6BFSI72MLN4NCF90UOXO66MDV9VJZOEAG2AG82PD4I7N9T1XDI4W7C5JTIZSE7VNRXYT7NXVY"
 
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot)
+router = Router()
+dp = Dispatcher(bot, router=router)
 
 running = False
 
@@ -58,7 +62,7 @@ async def run_requests():
             await asyncio.sleep(5)
             print(f"Processed batch: {count}")
 
-@dp.message_handler(commands=["start"])
+@dp.message(Command("start"))
 async def start_command(message: types.Message):
     await message.answer("Welcome! Use the buttons below to start or stop requests.", reply_markup=start_stop_markup)
 
@@ -81,4 +85,11 @@ async def callback_handler(callback_query: types.CallbackQuery):
             await callback_query.answer("Stopped processing requests!")
 
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    # New method to start the bot in aiogram v3.x
+    from aiogram import Bot, Dispatcher
+    from aiogram.types import ParseMode
+
+    async def on_start():
+        await dp.start_polling()
+
+    asyncio.run(on_start())

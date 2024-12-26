@@ -15,3 +15,10 @@ def get_tokens(user_id):
 # Get all tokens in the database
 def list_tokens():
     return list(db.tokens.find({}, {"_id": 0}))
+
+def set_current_account(user_id, token):
+    db.current_account.update_one({"user_id": user_id}, {"$set": {"token": token}}, upsert=True)
+
+def get_current_account(user_id):
+    record = db.current_account.find_one({"user_id": user_id})
+    return record["token"] if record else None

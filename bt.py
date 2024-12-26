@@ -132,16 +132,29 @@ async def account_callback_handler(callback_query: CallbackQuery):
             reply_markup=start_markup
         )
 
+@router.message(Command("start"))
+async def start_command(message: types.Message):
+    global user_chat_id
+    user_chat_id = message.chat.id
+    await message.answer("Welcome! Use the buttons below to navigate.", reply_markup=start_markup)
+
 # Handle new token submission
+
 @router.message()
 async def handle_new_token(message: types.Message):
+    # Ignore commands (messages starting with "/")
+    if message.text.startswith("/"):
+        return
+
     user_id = message.from_user.id
     token = message.text.strip()
 
-    if len(token) < 10:
+    # Validate token length
+    if len(token) < 10:  # Adjust this validation as per actual token format
         await message.reply("Invalid token. Please try again.")
         return
 
+    # Save the token to the database
     set_token(user_id, token)
     await message.reply("Your access token has been saved.")
 

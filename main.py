@@ -159,9 +159,11 @@ async def handle_new_token(message: types.Message):
 # Manage accounts via callback queries
 @router.callback_query()
 async def callback_handler(callback_query: CallbackQuery):
-    global running, status_message_id
+    global running, user_chat_id, status_message_id
 
     user_id = callback_query.from_user.id
+    user_chat_id = callback_query.message.chat.id  # Ensure this is updated
+
     if callback_query.data == "manage_accounts":
         tokens = get_tokens(user_id)
         current_token = get_current_account(user_id)
@@ -175,7 +177,10 @@ async def callback_handler(callback_query: CallbackQuery):
         buttons = []
         for i, token in enumerate(tokens):
             is_current = "(Current)" if token["token"] == current_token else ""
-            buttons.append([InlineKeyboardButton(text=f"Account {i + 1} {is_current}", callback_data=f"set_account_{i}")])
+            buttons.append([
+                InlineKeyboardButton(text=f"Account {i + 1} {is_current}", callback_data=f"set_account_{i}"),
+                InlineKeyboardButton(text="Delete", callback_data=f"delete_account_{i}")
+            ])
         buttons.append([InlineKeyboardButton(text="Back", callback_data="back_to_menu")])
         markup = InlineKeyboardMarkup(inline_keyboard=buttons)
         await callback_query.message.edit_text("Manage your accounts:", reply_markup=markup)
@@ -243,7 +248,7 @@ async def callback_handler(callback_query: CallbackQuery):
         await callback_query.message.edit_text(
             "Welcome! Use the buttons below to navigate.",
             reply_markup=start_markup
-        )
+                )
 
 # Main function to start the bot
 async def main():

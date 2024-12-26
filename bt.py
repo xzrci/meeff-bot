@@ -8,7 +8,7 @@ from aiogram.types.callback_query import CallbackQuery
 from db_helper import set_token, get_tokens
 
 # Tokens
-API_TOKEN = "7780275950:AAFZoZamRNCATEapl6rg2hmrUCbSCpXufyk"
+API_TOKEN = "your_telegram_bot_token"
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -52,6 +52,68 @@ async def fetch_users(session, user_id):
         if response.status == 200:
             return json_response.get("users", [])
         return []
+
+# Process users
+async def process_users(session, user_id, users):
+    global running
+
+    for user in users:
+        if not running:
+            break
+        user_id = user.get("_id")
+        async with session.get(
+            f"https://api.meeff.com/user/undoableAnswer/v5/?userId={user_id}&isOkay=1",
+            headers={
+                "meeff-access-token": get_tokens(user_id)[0]['token'],
+                "Connection": "keep-alive",
+            }
+        ) as response:
+            json_res = await response.json()
+            if "errorCode" in json_res and json_res["errorCode"] == "LikeExceeded":
+                await bot.edit_message_text(
+                    chat_id=user_chat_id,
+                    message_id=status_message_id,
+                    text="Meeff:\nDaily like limit reached. Stopping.",
+                    reply_markup=None
+                )
+                running = False
+                return
+
+# Run requests periodically
+async def run_requests(user_id):
+    global running, status_message_id
+    count = 0
+
+    async with aiohttp.ClientSession() as session:
+        while running:
+            try:
+                users = await fetch_users(session, user_id)
+                if not users:
+                    await bot.edit_message_text(
+                        chat_id=user_chat_id,
+                        message_id=status_message_id,
+                        text=f"Meeff:\nProcessed batch: {count}, Users fetched: 0",
+                        reply_markup=stop_markup
+                    )
+                else:
+                    await process_users(session, user_id, users)
+                    count += 1
+                    await bot.edit_message_text(
+                        chat_id=user_chat_id,
+                        message_id=status_message_id,
+                        text=f"Meeff:\nProcessed batch: {count}, Users fetched: {len(users)}",
+                        reply_markup=stop_markup
+                    )
+                await asyncio.sleep(5)
+            except Exception as e:
+                logging.error(f"Error during processing: {e}")
+                await bot.edit_message_text(
+                    chat_id=user_chat_id,
+                    message_id=status_message_id,
+                    text=f"Meeff:\nAn error occurred: {str(e)}",
+                    reply_markup=None
+                )
+                break
 
 # Command handler to start the bot
 @router.message(Command("start"))
@@ -120,12 +182,10 @@ async def handle_new_token(message: types.Message):
     user_id = message.from_user.id
     token = message.text.strip()
 
-    # Validate token format (optional)
-    if len(token) < 10:  # Adjust the validation as per actual token format
+    if len(token) < 10:
         await message.reply("Invalid token. Please try again.")
         return
 
-    # Save the token
     set_token(user_id, token)
     await message.reply("Your access token has been saved.")
 

@@ -153,25 +153,34 @@ async def start_command(message: types.Message):
     await message.answer("Welcome! Use the buttons below to navigate.", reply_markup=start_markup)
 
 # Handle new token submission
-
 @router.message()
 async def handle_new_token(message: types.Message):
-    # Ignore commands (messages starting with "/")
+    # Ignore commands
     if message.text.startswith("/"):
         return
 
     user_id = message.from_user.id
     token = message.text.strip()
 
-    # Validate token length
-    if len(token) < 10:  # Adjust this validation as per actual token format
+    if len(token) < 10:
         await message.reply("Invalid token. Please try again.")
         return
 
-    # Save the token to the database
-    set_token(user_id, token)
-    await message.reply("Your access token has been saved.")
+    # Fetch userId from MEEFF API
+    account_data, error = await fetch_account_details(token, "")
+    if error:
+        await message.reply(f"Failed to validate token. Error: {error}")
+        return
 
+    meeff_user_id = account_data.get("user", {}).get("_id")
+    if not meeff_user_id:
+        await message.reply("Failed to retrieve account information. Please check your token.")
+        return
+
+    # Save token and userId to the database
+    set_token(user_id, token, meeff_user_id)
+    await message.reply("Your access token has been saved.")
+    
 # Start polling
 async def main():
     dp.include_router(router)

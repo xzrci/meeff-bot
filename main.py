@@ -64,9 +64,10 @@ async def process_users(session, users):
                     )
                 print(json_res)  # Log the error message
                 running = False  # Stop the process
-                break
+                return True  # Signal that the limit was exceeded
             else:
                 print(json_res)  # Log normal responses
+    return False  # Signal that the limit was not exceeded
 
 # Run requests periodically
 async def run_requests():
@@ -80,10 +81,13 @@ async def run_requests():
                     if user_chat_id:
                         await bot.send_message(user_chat_id, "No users found in the current batch.")
                 else:
-                    await process_users(session, users)
+                    # Process users and check for LikeExceeded error
+                    limit_exceeded = await process_users(session, users)
+                    if limit_exceeded:
+                        break  # Exit the loop if the limit is exceeded
 
                 count += 1
-                if user_chat_id:
+                if running and user_chat_id:  # Ensure the bot doesn't send updates after stopping
                     await bot.send_message(
                         user_chat_id,
                         f"Processed batch: {count}, Users fetched: {len(users)}"

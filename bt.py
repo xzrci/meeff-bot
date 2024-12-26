@@ -8,8 +8,7 @@ from aiogram.types.callback_query import CallbackQuery
 from db_helper import set_token, get_tokens, set_current_account, get_current_account, delete_token
 
 # Tokens
-API_TOKEN = "8088969339:AAGd7a06rPhBhWQ0Q0Yxo8iIEpBQ3_sFzwY"
-DEFAULT_MEEFF_TOKEN = "0KOFZAF6QQVROOUK5ZPYIE5JGHV6UAEDXLS2MK1WL2CKEKMYOR8B4FXUQ1V3FUQPT4GL4AASYE4EO4R3YMQ7TW3GQ7URLA2VKR3KICB6NBMHNOXGJIXYW6UTR2C8H6M0MGB5PG1SXOOBA7ICI239IDVNIZ7Y0EYGNVB97I5HXZAU10FSAJ2ME4LOK7KBXGCW0ENHITK5843CZP5D4DHBMLIRA63BLMBYOLI3PVZVB6B6Q8ZZO18W2BYHNUPVPOAW"
+API_TOKEN = "7653663622:AAESlxbzSCDdxlOt1zf0_yYOHyxD_xJLfvY"
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -27,11 +26,15 @@ status_message_id = None
 # Inline keyboards
 start_markup = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Start Requests", callback_data="start")],
-    [InlineKeyboardButton(text="Account", callback_data="account")]
+    [InlineKeyboardButton(text="Manage Accounts", callback_data="manage_accounts")]
 ])
 
 stop_markup = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Stop Requests", callback_data="stop")]
+])
+
+back_markup = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="Back", callback_data="back_to_menu")]
 ])
 
 # Fetch users from MEEFF API
@@ -41,7 +44,6 @@ async def fetch_users(session, token):
         "meeff-access-token": token,
         "Connection": "keep-alive",
     }
-
     async with session.get(url, headers=headers) as response:
         if response.status != 200:
             logging.error(f"Failed to fetch users: {response.status}")
@@ -76,8 +78,17 @@ async def run_requests():
     async with aiohttp.ClientSession() as session:
         while running:
             try:
-                # Use the default token for testing
-                token = get_current_account(user_chat_id) or DEFAULT_MEEFF_TOKEN
+                # Retrieve the current account token from the database
+                token = get_current_account(user_chat_id)
+                if not token:
+                    await bot.edit_message_text(
+                        chat_id=user_chat_id,
+                        message_id=status_message_id,
+                        text="No active account found. Please set an account.",
+                        reply_markup=None
+                    )
+                    running = False
+                    return
                 logging.info(f"Using token: {token}")
 
                 users = await fetch_users(session, token)
@@ -125,39 +136,66 @@ async def start_command(message: types.Message):
     user_chat_id = message.chat.id
     await message.answer("Welcome! Use the button below to start requests.", reply_markup=start_markup)
 
-# Callback query handler for start/stop buttons
+# Handle new token submission
+@router.message()
+async def handle_new_token(message: types.Message):
+    if message.text.startswith("/"):
+        return
+
+    user_id = message.from_user.id
+    token = message.text.strip()
+
+    if len(token) < 10:
+        await message.reply("Invalid token. Please try again.")
+        return
+
+    # Save the token to the database
+    set_token(user_id, token, "meeff_user_id_placeholder")
+    await message.reply("Your access token has been saved. Use the menu to manage accounts.")
+
+# Manage accounts via callback queries
 @router.callback_query()
-async def callback_handler(callback_query: CallbackQuery):
+async def manage_accounts(callback_query: CallbackQuery):
     global running, status_message_id
 
-    if callback_query.data == "start":
-        if running:
-            await callback_query.answer("Requests are already running!")
-        else:
-            running = True
-            status_message = await callback_query.message.edit_text(
-                "Meeff:\nInitializing requests...",
-                reply_markup=stop_markup
-            )
-            status_message_id = status_message.message_id
-            asyncio.create_task(run_requests())
-            await callback_query.answer("Requests started!")
-    elif callback_query.data == "stop":
-        if not running:
-            await callback_query.answer("Requests are not running!")
-        else:
-            running = False
+    user_id = callback_query.from_user.id
+    if callback_query.data == "manage_accounts":
+        tokens = get_tokens(user_id)
+        if not tokens:
             await callback_query.message.edit_text(
-                "Meeff:\nRequests stopped. Use the button below to start again.",
-                reply_markup=start_markup
+                "No accounts saved. Send a new token to add an account.",
+                reply_markup=back_markup
             )
-            await callback_query.answer("Requests stopped.")
+            return
+
+        buttons = [
+            [InlineKeyboardButton(text=f"Account {i + 1}", callback_data=f"set_account_{i}")]
+            for i, token in enumerate(tokens)
+        ]
+        buttons.append([InlineKeyboardButton(text="Back", callback_data="back_to_menu")])
+        markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+        await callback_query.message.edit_text("Manage your accounts:", reply_markup=markup)
+
+    elif callback_query.data.startswith("set_account_"):
+        index = int(callback_query.data.split("_")[-1])
+        tokens = get_tokens(user_id)
+        if index >= len(tokens):
+            await callback_query.answer("Invalid account selected.")
+            return
+
+        set_current_account(user_id, tokens[index]["token"])
+        await callback_query.message.edit_text("Account set as active. You can now start requests.")
+
+    elif callback_query.data == "back_to_menu":
+        await callback_query.message.edit_text(
+            "Welcome! Use the buttons below to navigate.",
+            reply_markup=start_markup
+        )
 
 # Main function to start the bot
 async def main():
     dp.include_router(router)
     await dp.start_polling(bot)
 
-# Entry point
 if __name__ == "__main__":
     asyncio.run(main())

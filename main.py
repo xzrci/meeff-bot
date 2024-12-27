@@ -7,6 +7,8 @@ from aiogram.filters import Command
 from aiogram.types.callback_query import CallbackQuery
 from db_helper import set_token, get_tokens, set_current_account, get_current_account, delete_token
 import html
+import requests
+import json
 from collections import defaultdict
 
 # Tokens
@@ -30,7 +32,8 @@ user_states = defaultdict(lambda: {
 # Inline keyboards
 start_markup = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Start Requests", callback_data="start")],
-    [InlineKeyboardButton(text="Manage Accounts", callback_data="manage_accounts")]
+    [InlineKeyboardButton(text="Manage Accounts", callback_data="manage_accounts")],
+    [InlineKeyboardButton(text="Show Account Info", callback_data="show_account_info")]
 ])
 
 stop_markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -169,6 +172,39 @@ async def run_requests(user_id):
                     state["pinned_message_id"] = None
                 break
 
+# Fetch account information from MEEFF API
+async def fetch_account_info(token):
+    url = "https://api.meeff.com/user/login/v4"
+    payload = {
+        "os": "iOS v16.4.1",
+        "platform": "ios",
+        "device": "BRAND: Apple, MODEL: iPhone 14 Pro, DEVICE: iPhone14,3, PRODUCT: iPhone-14Pro-Max-512GB-Silver, DISPLAY: 2556x1179",
+        "pushToken": "",
+        "deviceUniqueId": "6a92f1b4e7d54abc",
+        "deviceLanguage": "en",
+        "deviceRegion": "US",
+        "simRegion": "US",
+        "deviceGmtOffset": "-0800",
+        "deviceRooted": 0,
+        "deviceEmulator": 0,
+        "appVersion": "6.3.9",
+        "locale": "en"
+    }
+    headers = {
+        'User-Agent': "okhttp/4.12.0",
+        'Accept-Encoding': "gzip",
+        'meeff-access-token': token,
+        'content-type': "application/json; charset=utf-8"
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, data=json.dumps(payload), headers=headers) as response:
+            if response.status != 200:
+                logging.error(f"Failed to fetch account info: {response.status}")
+                return None
+            data = await response.json()
+            logging.info(f"Fetched Account Info: {data}")
+            return data['user']
+
 # Command handler to start the bot
 @router.message(Command("start"))
 async def start_command(message: types.Message):
@@ -269,6 +305,28 @@ async def callback_handler(callback_query: CallbackQuery):
             if state["pinned_message_id"] is not None:
                 await bot.unpin_chat_message(chat_id=user_id, message_id=state["pinned_message_id"])
                 state["pinned_message_id"] = None
+
+    elif callback_query.data == "show_account_info":
+        token = get_current_account(user_id)
+        if not token:
+            await callback_query.message.edit_text("No active account token found. Please set an account before requesting account info.", reply_markup=back_markup)
+            return
+        account_info = await fetch_account_info(token)
+        if account_info:
+            details = (
+                f"<b>Name:</b> {html.escape(account_info.get('name', 'N/A'))}\n"
+                f"<b>Email:</b> {html.escape(account_info.get('email', 'N/A'))}\n"
+                f"<b>Birth Year:</b> {html.escape(str(account_info.get('birthYear', 'N/A')))}\n"
+                f"<b>Nationality:</b> {html.escape(account_info.get('nationalityCode', 'N/A'))}\n"
+                f"<b>Languages:</b> {html.escape(', '.join(account_info.get('languageCodes', [])))}\n"
+                f"<b>Description:</b> {html.escape(account_info.get('description', 'N/A'))}\n"
+                f"<b>Photos:</b> "
+            )
+            for photo_url in account_info.get('photoUrls', []):
+                details += f"<a href='{html.escape(photo_url)}'>Photo</a> "
+            await callback_query.message.edit_text(details, parse_mode="HTML", reply_markup=back_markup)
+        else:
+            await callback_query.message.edit_text("Failed to retrieve account information.", reply_markup=back_markup)
 
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text(

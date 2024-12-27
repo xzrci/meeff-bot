@@ -69,13 +69,13 @@ def format_user_details(user):
         details += f"<a href='{photo_url}'>Photo</a> "
     return details
 
-# Display user's own Meeff account information with proper formatting
 async def display_account_info(token):
     url = "https://api.meeff.com/user/info/v1"
     headers = {
         'User-Agent': "okhttp/4.12.0",
         'Accept-Encoding': "gzip",
-        'meeff-access-token': token
+        'meeff-access-token': token,
+        'Connection': 'keep-alive'
     }
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:

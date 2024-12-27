@@ -59,9 +59,6 @@ def format_user_details(user):
     details += f"Birth Year: {user.get('birthYear', 'N/A')}\n"
     details += f"Distance: {user.get('distance', 'N/A')} km\n"
     details += f"Language Codes: {', '.join(user.get('languageCodes', []))}\n"
-    details += f"Photos:\n"
-    for photo_url in user.get('photoUrls', []):
-        details += f"{photo_url}\n"
     return details
 
 # Process each user
@@ -81,6 +78,7 @@ async def process_users(session, users, token):
             # Send user details to Telegram chat
             details = format_user_details(user)
             await bot.send_message(chat_id=user_chat_id, text=details)
+            await asyncio.sleep(1)  # Short delay to ensure messages are sent one by one
     return False
 
 # Run requests periodically
@@ -106,13 +104,12 @@ async def run_requests():
                 users = await fetch_users(session, token)
                 if not users:
                     new_text = f"Meeff:\nProcessed batch: {count}, Users fetched: 0"
-                    if new_text != bot.get_message_text(chat_id=user_chat_id, message_id=status_message_id):
-                        await bot.edit_message_text(
-                            chat_id=user_chat_id,
-                            message_id=status_message_id,
-                            text=new_text,
-                            reply_markup=stop_markup
-                        )
+                    await bot.edit_message_text(
+                        chat_id=user_chat_id,
+                        message_id=status_message_id,
+                        text=new_text,
+                        reply_markup=stop_markup
+                    )
                 else:
                     limit_exceeded = await process_users(session, users, token)
                     if limit_exceeded:
@@ -128,13 +125,12 @@ async def run_requests():
 
                     count += 1
                     new_text = f"Meeff:\nProcessed batch: {count}, Users fetched: {len(users)}"
-                    if new_text != bot.get_message_text(chat_id=user_chat_id, message_id=status_message_id):
-                        await bot.edit_message_text(
-                            chat_id=user_chat_id,
-                            message_id=status_message_id,
-                            text=new_text,
-                            reply_markup=stop_markup
-                        )
+                    await bot.edit_message_text(
+                        chat_id=user_chat_id,
+                        message_id=status_message_id,
+                        text=new_text,
+                        reply_markup=stop_markup
+                    )
                 await asyncio.sleep(5)
             except Exception as e:
                 logging.error(f"Error during processing: {e}")

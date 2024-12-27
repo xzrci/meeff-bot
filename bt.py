@@ -25,7 +25,8 @@ dp = Dispatcher()
 user_states = defaultdict(lambda: {
     "running": False,
     "status_message_id": None,
-    "pinned_message_id": None
+    "pinned_message_id": None,
+    "total_added_friends": 0
 })
 
 # Inline keyboards
@@ -66,6 +67,7 @@ def format_user_details(user):
 
 async def process_users(session, users, token, user_id):
     state = user_states[user_id]
+    added_friends = 0
     for user in users:
         if not state["running"]:
             break
@@ -77,11 +79,17 @@ async def process_users(session, users, token, user_id):
                 logging.info("Daily like limit reached.")
                 return True
             await bot.send_message(chat_id=user_id, text=format_user_details(user), parse_mode="HTML")
+            added_friends += 1
+            state["total_added_friends"] += 1
+            await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],
+                                        text=f"Processed batch: {added_friends}, Total added friends: {state['total_added_friends']}",
+                                        reply_markup=stop_markup)
             await asyncio.sleep(1)
     return False
 
 async def run_requests(user_id):
     state = user_states[user_id]
+    state["total_added_friends"] = 0
     count = 0
     async with aiohttp.ClientSession() as session:
         while state["running"]:
@@ -114,7 +122,7 @@ async def run_requests(user_id):
                         break
                     count += 1
                     await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],
-                                                text=f"Processed batch: {count}, Users fetched: {len(users)}",
+                                                text=f"Processed batch: {count}, Users fetched: {len(users)}, Total added friends: {state['total_added_friends']}",
                                                 reply_markup=stop_markup)
                 await asyncio.sleep(5)
             except Exception as e:

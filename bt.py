@@ -1,6 +1,7 @@
 import asyncio
 import aiohttp
 import logging
+import json
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram.filters import Command
@@ -82,10 +83,7 @@ async def display_account_info(token):
                 logging.error(f"Failed to fetch account info: {response.status}")
                 return "Failed to fetch account info."
             data = await response.json()
-            if "user" in data:
-                return format_user_details(data["user"])
-            else:
-                return "Failed to fetch account info."
+            return f"```\n{json.dumps(data, indent=4)}\n```"  # Return the JSON response formatted as a code block
 
 # Process each user
 async def process_users(session, users, token):
@@ -277,7 +275,7 @@ async def callback_handler(callback_query: CallbackQuery):
         token = get_current_account(user_id)
         if token:
             account_info = await display_account_info(token)
-            await callback_query.message.edit_text(account_info, parse_mode="HTML")
+            await callback_query.message.edit_text(account_info, parse_mode="MarkdownV2")
         else:
             await callback_query.answer("No account token found. Please set an account first.")
 

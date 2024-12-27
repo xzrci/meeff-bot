@@ -55,7 +55,7 @@ async def fetch_users(session, token):
         return (await response.json()).get("users", [])
 
 def format_user_details(user):
-    details = (
+    return (
         f"<b>Name:</b> {html.escape(user.get('name', 'N/A'))}\n"
         f"<b>Description:</b> {html.escape(user.get('description', 'N/A'))}\n"
         f"<b>Birth Year:</b> {html.escape(str(user.get('birthYear', 'N/A')))}\n"
@@ -63,7 +63,6 @@ def format_user_details(user):
         f"<b>Language Codes:</b> {html.escape(', '.join(user.get('languageCodes', [])))}\n"
         "Photos: " + ' '.join([f"<a href='{html.escape(url)}'>Photo</a>" for url in user.get('photoUrls', [])])
     )
-    return details
 
 async def process_users(session, users, token, user_id):
     state = user_states[user_id]
@@ -293,8 +292,7 @@ async def callback_handler(callback_query: CallbackQuery):
 
 async def set_bot_commands():
     commands = [
-        BotCommand(command="start", description="Start the bot"),
-        BotCommand(command="invoke", description="Delete expired accounts")
+        BotCommand(command="start", description="Start the bot")
     ]
     await bot.set_my_commands(commands)
 

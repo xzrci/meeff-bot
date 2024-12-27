@@ -8,13 +8,13 @@ db = client.meeff_tokens
 def set_token(user_id, token, meeff_user_id):
     db.tokens.update_one(
         {"user_id": user_id, "token": token},
-        {"$set": {"user_id": user_id, "token": token, "meeff_user_id": meeff_user_id}},
+        {"$set": {"user_id": user_id, "token": token, "name": meeff_user_id}},
         upsert=True
     )
     
 # Get all tokens for a user
 def get_tokens(user_id):
-    return list(db.tokens.find({"user_id": user_id}, {"_id": 0, "token": 1}))
+    return list(db.tokens.find({"user_id": user_id}, {"_id": 0, "token": 1, "name": 1}))
 
 # Get all tokens in the database
 def list_tokens():

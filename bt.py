@@ -155,7 +155,7 @@ async def start_command(message: types.Message):
 
 @router.message()
 async def handle_new_token(message: types.Message):
-    if message.text.startswith("/"):
+    if message.text and message.text.startswith("/"):
         return
     user_id = message.from_user.id
     token = message.text.strip()
@@ -170,6 +170,7 @@ async def handle_new_token(message: types.Message):
 
     set_token(user_id, token, account_info['name'])
     await message.reply("Your access token has been verified and saved. Use the menu to manage accounts.")
+
 
 @router.callback_query()
 async def callback_handler(callback_query: CallbackQuery):

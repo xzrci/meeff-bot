@@ -2,7 +2,7 @@ import asyncio
 import aiohttp
 import logging
 from aiogram import Bot, Dispatcher, Router, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram.filters import Command
 from aiogram.types.callback_query import CallbackQuery
 from db_helper import set_token, get_tokens, set_current_account, get_current_account, delete_token
@@ -227,8 +227,16 @@ async def callback_handler(callback_query: CallbackQuery):
             reply_markup=start_markup
         )
 
+# Set bot commands
+async def set_bot_commands():
+    commands = [
+        BotCommand(command="start", description="Start the bot"),
+    ]
+    await bot.set_my_commands(commands)
+
 # Main function to start the bot
 async def main():
+    await set_bot_commands()  # Add this line
     dp.include_router(router)
     await dp.start_polling(bot)
 

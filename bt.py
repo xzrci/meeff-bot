@@ -68,9 +68,6 @@ def format_user_details(user):
 async def process_users(session, users, token, user_id):
     state = user_states[user_id]
     batch_added_friends = 0
-    batch_index = state.get("batch_index", 0) + 1
-    state["batch_index"] = batch_index
-    user_details = "\n\n".join([format_user_details(user) for user in users])
     for user in users:
         if not state["running"]:
             break
@@ -81,16 +78,15 @@ async def process_users(session, users, token, user_id):
             if data.get("errorCode") == "LikeExceeded":
                 logging.info("Daily like limit reached.")
                 return True
+            await bot.send_message(chat_id=user_id, text=format_user_details(user), parse_mode="HTML")
             batch_added_friends += 1
             state["total_added_friends"] += 1
+            await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],
+                                        text=f"Batch: {state['batch_index']} Users Fetched: {len(users)}\n"
+                                             f"Batch: {state['batch_index']} Added Friends: {batch_added_friends}\n"
+                                             f"Total Added: {state['total_added_friends']}",
+                                        reply_markup=stop_markup)
             await asyncio.sleep(1)
-    await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],
-                                text=f"<b>Batch:</b> {batch_index} <b>Users Fetched:</b> {len(users)}\n\n"
-                                     f"{user_details}\n\n"
-                                     f"<b>Batch {batch_index} Added Friends:</b> {batch_added_friends}\n"
-                                     f"<b>Total Added:</b> {state['total_added_friends']}",
-                                reply_markup=stop_markup,
-                                parse_mode="HTML")
     return False
 
 async def run_requests(user_id):
@@ -112,12 +108,12 @@ async def run_requests(user_id):
                     return
 
                 users = await fetch_users(session, token)
+                state["batch_index"] += 1
                 if not users:
                     await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],
-                                                text=f"<b>Batch:</b> {state['batch_index']+1} <b>Users Fetched:</b> 0\n\n"
-                                                     f"<b>Total Added:</b> {state['total_added_friends']}",
-                                                reply_markup=stop_markup,
-                                                parse_mode="HTML")
+                                                text=f"Batch: {state['batch_index']} Users Fetched: 0\n"
+                                                     f"Total Added: {state['total_added_friends']}",
+                                                reply_markup=stop_markup)
                 else:
                     if await process_users(session, users, token, user_id):
                         await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],

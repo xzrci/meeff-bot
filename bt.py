@@ -137,10 +137,6 @@ async def run_requests():
                         text=new_text,
                         reply_markup=stop_markup
                     )
-                    # Pin the message if not already pinned
-                    if pinned_message_id is None:
-                        await bot.pin_chat_message(chat_id=user_chat_id, message_id=status_message_id)
-                        pinned_message_id = status_message_id
                 await asyncio.sleep(5)
             except Exception as e:
                 logging.error(f"Error during processing: {e}")
@@ -156,9 +152,11 @@ async def run_requests():
 # Command handler to start the bot
 @router.message(Command("start"))
 async def start_command(message: types.Message):
-    global user_chat_id
+    global user_chat_id, status_message_id, pinned_message_id
     user_chat_id = message.chat.id
-    await message.answer("Welcome! Use the button below to start requests.", reply_markup=start_markup)
+    status_message = await message.answer("Welcome! Use the button below to start requests.", reply_markup=start_markup)
+    status_message_id = status_message.message_id
+    pinned_message_id = None
 
 # Handle new token submission
 @router.message()
@@ -228,6 +226,8 @@ async def callback_handler(callback_query: CallbackQuery):
                     reply_markup=stop_markup
                 )
                 status_message_id = status_message.message_id
+                pinned_message_id = status_message_id
+                await bot.pin_chat_message(chat_id=user_chat_id, message_id=status_message_id)
                 asyncio.create_task(run_requests())
                 await callback_query.answer("Requests started!")
             except Exception as e:

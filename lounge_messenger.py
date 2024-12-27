@@ -57,24 +57,29 @@ async def send_message(token, chatroom_id, message):
             return await response.json()
 
 async def send_hi_to_everyone(token, message="hi", status_message=None, bot=None, chat_id=None):
-    users = await fetch_lounge_users(token)
-    total_users = len(users)
-    if not users:
-        logging.info("No users found in the lounge.")
-        return
-
     sent_count = 0
-    for user in users:
-        user_id = user["user"]["_id"]
-        chatroom_id = await open_chatroom(token, user_id)
-        if chatroom_id:
-            await send_message(token, chatroom_id, message)
-            sent_count += 1
-            if bot and chat_id and status_message:
-                await bot.edit_message_text(
-                    chat_id=chat_id,
-                    message_id=status_message.message_id,
-                    text=f"Lounge Users: {total_users} Message sent: {sent_count}",
-                )
-            logging.info(f"Sent message to {user['user']['name']} in chatroom {chatroom_id}.")
-        await asyncio.sleep(1)  # Avoid hitting API rate limits
+    total_users = 0
+
+    while True:
+        users = await fetch_lounge_users(token)
+        if not users:
+            logging.info("No users found in the lounge.")
+            break
+
+        total_users += len(users)
+        for user in users:
+            user_id = user["user"]["_id"]
+            chatroom_id = await open_chatroom(token, user_id)
+            if chatroom_id:
+                await send_message(token, chatroom_id, message)
+                sent_count += 1
+                if bot and chat_id and status_message:
+                    await bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=status_message.message_id,
+                        text=f"Lounge Users: {total_users} Message sent: {sent_count}",
+                    )
+                logging.info(f"Sent message to {user['user']['name']} in chatroom {chatroom_id}.")
+            await asyncio.sleep(1)  # Avoid hitting API rate limits
+
+    logging.info(f"Finished sending messages. Total Lounge Users: {total_users}, Messages sent: {sent_count}")

@@ -1,7 +1,6 @@
 import asyncio
 import aiohttp
 import logging
-import json
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram.filters import Command
@@ -28,8 +27,7 @@ pinned_message_id = None
 # Inline keyboards
 start_markup = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Start Requests", callback_data="start")],
-    [InlineKeyboardButton(text="Manage Accounts", callback_data="manage_accounts")],
-    [InlineKeyboardButton(text="Display My Account", callback_data="display_account")]
+    [InlineKeyboardButton(text="Manage Accounts", callback_data="manage_accounts")]
 ])
 
 stop_markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -68,48 +66,6 @@ def format_user_details(user):
     for photo_url in user.get('photoUrls', []):
         details += f"<a href='{photo_url}'>Photo</a> "
     return details
-
-async def display_account_info(token):
-    url = "https://api.meeff.com/user/info/v1"
-    headers = {
-        'User-Agent': "okhttp/4.12.0",
-        'Accept-Encoding': "gzip",
-        'meeff-access-token': token,
-        'Connection': 'keep-alive'
-    }
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as response:
-            if response.status != 200:
-                logging.error(f"Failed to fetch account info: {response.status}")
-                return "Failed to fetch account info."
-            
-            # Parse the API response
-            data = await response.json()
-
-            # Log the full response data for debugging
-            logging.info(f"Account Info Response: {json.dumps(data, indent=2)}")
-
-            if not data:
-                return "No account information available."
-            
-            # Extract and format the account details
-            formatted_details = (
-                f"<b>Name:</b> {data.get('name', 'N/A')}\n"
-                f"<b>Email:</b> {data.get('email', 'N/A')}\n"
-                f"<b>Birth Year:</b> {data.get('birthYear', 'N/A')}\n"
-                f"<b>Gender:</b> {data.get('gender', 'N/A')}\n"
-                f"<b>Languages:</b> {', '.join(data.get('languageCodes', []))}\n"
-                f"<b>Description:</b> {data.get('description', 'N/A')}\n"
-            )
-            
-            # Include profile photos if available
-            photo_urls = data.get('photoUrls', [])
-            if photo_urls:
-                formatted_details += "\n<b>Profile Photos:</b>\n"
-                for idx, photo_url in enumerate(photo_urls, start=1):
-                    formatted_details += f"<a href='{photo_url}'>Photo {idx}</a>\n"
-            
-            return formatted_details
 
 # Process each user
 async def process_users(session, users, token):
@@ -153,7 +109,7 @@ async def run_requests():
                 logging.info(f"Using token: {token}")
                 users = await fetch_users(session, token)
                 if not users:
-                    new_text = f"Meeff:\nProcessed batch: {count}, Users fetched: 0"
+                    new_text = f"Processed batch: {count}, Users fetched: 0"
                     await bot.edit_message_text(
                         chat_id=user_chat_id,
                         message_id=status_message_id,
@@ -167,14 +123,14 @@ async def run_requests():
                         await bot.edit_message_text(
                             chat_id=user_chat_id,
                             message_id=status_message_id,
-                            text="Meeff:\nDaily like limit reached. Stopping requests.",
+                            text="You've reached daily limit, try again tomorrow.",
                             reply_markup=None
                         )
                         running = False
                         break
 
                     count += 1
-                    new_text = f"Meeff:\nProcessed batch: {count}, Users fetched: {len(users)}"
+                    new_text = f"Processed batch: {count}, Users fetched: {len(users)}"
                     await bot.edit_message_text(
                         chat_id=user_chat_id,
                         message_id=status_message_id,
@@ -187,7 +143,7 @@ async def run_requests():
                 await bot.edit_message_text(
                     chat_id=user_chat_id,
                     message_id=status_message_id,
-                    text=f"Meeff:\nAn error occurred: {e}",
+                    text=f"An error occurred: {e}",
                     reply_markup=None
                 )
                 running = False
@@ -266,7 +222,7 @@ async def callback_handler(callback_query: CallbackQuery):
             running = True
             try:
                 status_message = await callback_query.message.edit_text(
-                    "Meeff:\nInitializing requests...",
+                    "Initializing requests...",
                     reply_markup=stop_markup
                 )
                 status_message_id = status_message.message_id
@@ -277,7 +233,7 @@ async def callback_handler(callback_query: CallbackQuery):
             except Exception as e:
                 logging.error(f"Error while starting requests: {e}")
                 await callback_query.message.edit_text(
-                    "Meeff:\nFailed to start requests. Please try again later.",
+                    "Failed to start requests. Please try again later.",
                     reply_markup=start_markup
                 )
                 running = False
@@ -288,7 +244,7 @@ async def callback_handler(callback_query: CallbackQuery):
         else:
             running = False
             await callback_query.message.edit_text(
-                "Meeff:\nRequests stopped. Use the button below to start again.",
+                "Requests stopped. Use the button below to start again.",
                 reply_markup=start_markup
             )
             await callback_query.answer("Requests stopped.")
@@ -297,14 +253,6 @@ async def callback_handler(callback_query: CallbackQuery):
                 await bot.unpin_chat_message(chat_id=user_chat_id, message_id=pinned_message_id)
                 pinned_message_id = None
 
-    elif callback_query.data == "display_account":
-        token = get_current_account(user_id)
-        if token:
-            account_info = await display_account_info(token)
-            await callback_query.message.edit_text(account_info, parse_mode="HTML", disable_web_page_preview=True)
-        else:
-            await callback_query.answer("No account token found. Please set an account first.")
-        
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text(
             "Welcome! Use the buttons below to navigate.",

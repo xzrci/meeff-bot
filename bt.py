@@ -6,6 +6,8 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram.filters import Command
 from aiogram.types.callback_query import CallbackQuery
 from db_helper import set_token, get_tokens, set_current_account, get_current_account, delete_token
+import html
+from collections import defaultdict
 
 # Tokens
 API_TOKEN = "8088969339:AAGd7a06rPhBhWQ0Q0Yxo8iIEpBQ3_sFzwY"
@@ -19,10 +21,11 @@ router = Router()
 dp = Dispatcher()
 
 # Global state variables
-running = False
-user_chat_id = None
-status_message_id = None
-pinned_message_id = None
+user_states = defaultdict(lambda: {
+    "running": False,
+    "status_message_id": None,
+    "pinned_message_id": None
+})
 
 # Inline keyboards
 start_markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -55,23 +58,31 @@ async def fetch_users(session, token):
 
 # Format user details for Telegram message
 def format_user_details(user):
+    # Sanitize user inputs to avoid HTML parsing issues
+    name = html.escape(user.get('name', 'N/A'))
+    description = html.escape(user.get('description', 'N/A'))
+    birth_year = html.escape(str(user.get('birthYear', 'N/A')))
+    distance = html.escape(str(user.get('distance', 'N/A')))
+    language_codes = html.escape(', '.join(user.get('languageCodes', [])))
+
     details = (
-        f"<b>Name:</b> {user.get('name', 'N/A')}\n"
-        f"<b>Description:</b> {user.get('description', 'N/A')}\n"
-        f"<b>Birth Year:</b> {user.get('birthYear', 'N/A')}\n"
-        f"<b>Distance:</b> {user.get('distance', 'N/A')} km\n"
-        f"<b>Language Codes:</b> {', '.join(user.get('languageCodes', []))}\n"
+        f"<b>Name:</b> {name}\n"
+        f"<b>Description:</b> {description}\n"
+        f"<b>Birth Year:</b> {birth_year}\n"
+        f"<b>Distance:</b> {distance} km\n"
+        f"<b>Language Codes:</b> {language_codes}\n"
         "Photos: "
     )
     for photo_url in user.get('photoUrls', []):
-        details += f"<a href='{photo_url}'>Photo</a> "
+        details += f"<a href='{html.escape(photo_url)}'>Photo</a> "
     return details
 
 # Process each user
-async def process_users(session, users, token):
+async def process_users(session, users, token, user_id):
+    state = user_states[user_id]
     for user in users:
         user_id = user.get("_id")
-        if not running:
+        if not state["running"]:
             break
         url = f"https://api.meeff.com/user/undoableAnswer/v5/?userId={user_id}&isOkay=1"
         headers = {"meeff-access-token": token, "Connection": "keep-alive"}
@@ -83,27 +94,27 @@ async def process_users(session, users, token):
                 return True
             # Send user details to Telegram chat
             details = format_user_details(user)
-            await bot.send_message(chat_id=user_chat_id, text=details, parse_mode="HTML")
+            await bot.send_message(chat_id=user_id, text=details, parse_mode="HTML")
             await asyncio.sleep(1)  # Short delay to ensure messages are sent one by one
     return False
 
 # Run requests periodically
-async def run_requests():
-    global running, user_chat_id, status_message_id, pinned_message_id
+async def run_requests(user_id):
+    state = user_states[user_id]
     count = 0
     async with aiohttp.ClientSession() as session:
-        while running:
+        while state["running"]:
             try:
-                token = get_current_account(user_chat_id)
+                token = get_current_account(user_id)
                 if not token:
                     logging.error("No active account token found.")
                     await bot.edit_message_text(
-                        chat_id=user_chat_id,
-                        message_id=status_message_id,
+                        chat_id=user_id,
+                        message_id=state["status_message_id"],
                         text="No active account found. Please set an account before starting requests.",
                         reply_markup=None
                     )
-                    running = False
+                    state["running"] = False
                     return
 
                 logging.info(f"Using token: {token}")
@@ -111,29 +122,29 @@ async def run_requests():
                 if not users:
                     new_text = f"Processed batch: {count}, Users fetched: 0"
                     await bot.edit_message_text(
-                        chat_id=user_chat_id,
-                        message_id=status_message_id,
+                        chat_id=user_id,
+                        message_id=state["status_message_id"],
                         text=new_text,
                         reply_markup=stop_markup
                     )
                 else:
-                    limit_exceeded = await process_users(session, users, token)
+                    limit_exceeded = await process_users(session, users, token, user_id)
                     if limit_exceeded:
                         logging.info("Daily like limit reached.")
                         await bot.edit_message_text(
-                            chat_id=user_chat_id,
-                            message_id=status_message_id,
+                            chat_id=user_id,
+                            message_id=state["status_message_id"],
                             text="You've reached daily limit, try again tomorrow.",
                             reply_markup=None
                         )
-                        running = False
+                        state["running"] = False
                         break
 
                     count += 1
                     new_text = f"Processed batch: {count}, Users fetched: {len(users)}"
                     await bot.edit_message_text(
-                        chat_id=user_chat_id,
-                        message_id=status_message_id,
+                        chat_id=user_id,
+                        message_id=state["status_message_id"],
                         text=new_text,
                         reply_markup=stop_markup
                     )
@@ -141,22 +152,21 @@ async def run_requests():
             except Exception as e:
                 logging.error(f"Error during processing: {e}")
                 await bot.edit_message_text(
-                    chat_id=user_chat_id,
-                    message_id=status_message_id,
+                    chat_id=user_id,
+                    message_id=state["status_message_id"],
                     text=f"An error occurred: {e}",
                     reply_markup=None
                 )
-                running = False
+                state["running"] = False
                 break
 
 # Command handler to start the bot
 @router.message(Command("start"))
 async def start_command(message: types.Message):
-    global user_chat_id, status_message_id, pinned_message_id
-    user_chat_id = message.chat.id
-    status_message = await message.answer("Welcome! Use the button below to start requests.", reply_markup=start_markup)
-    status_message_id = status_message.message_id
-    pinned_message_id = None
+    user_id = message.chat.id
+    state = user_states[user_id]
+    state["status_message_id"] = (await message.answer("Welcome! Use the button below to start requests.", reply_markup=start_markup)).message_id
+    state["pinned_message_id"] = None
 
 # Handle new token submission
 @router.message()
@@ -174,10 +184,8 @@ async def handle_new_token(message: types.Message):
 # Manage accounts and handle other callback queries
 @router.callback_query()
 async def callback_handler(callback_query: CallbackQuery):
-    global running, user_chat_id, status_message_id, pinned_message_id
-
     user_id = callback_query.from_user.id
-    user_chat_id = callback_query.message.chat.id  # Ensure this is updated
+    state = user_states[user_id]
 
     if callback_query.data == "manage_accounts":
         tokens = get_tokens(user_id)
@@ -216,19 +224,19 @@ async def callback_handler(callback_query: CallbackQuery):
             await callback_query.answer("Invalid account selected.")
 
     elif callback_query.data == "start":
-        if running:
+        if state["running"]:
             await callback_query.answer("Requests are already running!")
         else:
-            running = True
+            state["running"] = True
             try:
                 status_message = await callback_query.message.edit_text(
                     "Initializing requests...",
                     reply_markup=stop_markup
                 )
-                status_message_id = status_message.message_id
-                pinned_message_id = status_message_id
-                await bot.pin_chat_message(chat_id=user_chat_id, message_id=status_message_id)
-                asyncio.create_task(run_requests())
+                state["status_message_id"] = status_message.message_id
+                state["pinned_message_id"] = status_message.message_id
+                await bot.pin_chat_message(chat_id=user_id, message_id=state["status_message_id"])
+                asyncio.create_task(run_requests(user_id))
                 await callback_query.answer("Requests started!")
             except Exception as e:
                 logging.error(f"Error while starting requests: {e}")
@@ -236,22 +244,22 @@ async def callback_handler(callback_query: CallbackQuery):
                     "Failed to start requests. Please try again later.",
                     reply_markup=start_markup
                 )
-                running = False
+                state["running"] = False
 
     elif callback_query.data == "stop":
-        if not running:
+        if not state["running"]:
             await callback_query.answer("Requests are not running!")
         else:
-            running = False
+            state["running"] = False
             await callback_query.message.edit_text(
                 "Requests stopped. Use the button below to start again.",
                 reply_markup=start_markup
             )
             await callback_query.answer("Requests stopped.")
             # Unpin the message
-            if pinned_message_id is not None:
-                await bot.unpin_chat_message(chat_id=user_chat_id, message_id=pinned_message_id)
-                pinned_message_id = None
+            if state["pinned_message_id"] is not None:
+                await bot.unpin_chat_message(chat_id=user_id, message_id=state["pinned_message_id"])
+                state["pinned_message_id"] = None
 
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text(

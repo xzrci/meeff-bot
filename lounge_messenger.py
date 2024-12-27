@@ -1,55 +1,80 @@
-import requests
-import json
+import aiohttp
+import asyncio
 import logging
 
 LOUNGE_URL = "https://api.meeff.com/lounge/dashboard/v1"
-CHATROOM_OPEN_URL = "https://api.meeff.com/chatroom/open/v2"
+CHATROOM_URL = "https://api.meeff.com/chatroom/open/v2"
 SEND_MESSAGE_URL = "https://api.meeff.com/chat/send/v2"
-
 HEADERS = {
-  'User-Agent': "okhttp/4.12.0",
-  'Accept-Encoding': "gzip",
-  'meeff-access-token': "YOUR_ACCESS_TOKEN",
-  'content-type': "application/json; charset=utf-8"
+    'User-Agent': "okhttp/4.12.0",
+    'Accept-Encoding': "gzip",
+    'content-type': "application/json; charset=utf-8"
 }
 
-async def get_lounge_users():
+async def fetch_lounge_users(token):
+    headers = HEADERS.copy()
+    headers['meeff-access-token'] = token
     params = {'locale': "en"}
-    response = requests.get(LOUNGE_URL, params=params, headers=HEADERS)
-    if response.status_code != 200:
-        logging.error(f"Failed to fetch lounge users: {response.status_code}")
-        return []
-    return response.json().get("both", [])
 
-async def open_chatroom_and_send_message(user_id, message_text):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(LOUNGE_URL, params=params, headers=headers) as response:
+            if response.status != 200:
+                logging.error(f"Failed to fetch lounge users: {response.status}")
+                return []
+            data = await response.json()
+            return data.get("both", [])
+
+async def open_chatroom(token, user_id):
+    headers = HEADERS.copy()
+    headers['meeff-access-token'] = token
     payload = {
         "waitingRoomId": user_id,
         "locale": "en"
     }
-    response = requests.post(CHATROOM_OPEN_URL, data=json.dumps(payload), headers=HEADERS)
-    if response.status_code != 200:
-        logging.error(f"Failed to open chatroom: {response.status_code}")
-        return None
-    chatroom_id = response.json().get("chatRoom", {}).get("_id")
-    if not chatroom_id:
-        logging.error("Failed to get chatroom ID")
-        return None
 
-    message_payload = {
+    async with aiohttp.ClientSession() as session:
+        async with session.post(CHATROOM_URL, json=payload, headers=headers) as response:
+            if response.status != 200:
+                logging.error(f"Failed to open chatroom: {response.status}")
+                return None
+            data = await response.json()
+            return data.get("chatRoom", {}).get("_id")
+
+async def send_message(token, chatroom_id, message):
+    headers = HEADERS.copy()
+    headers['meeff-access-token'] = token
+    payload = {
         "chatRoomId": chatroom_id,
-        "message": message_text,
+        "message": message,
         "locale": "en"
     }
-    message_response = requests.post(SEND_MESSAGE_URL, data=json.dumps(message_payload), headers=HEADERS)
-    if message_response.status_code != 200:
-        logging.error(f"Failed to send message: {message_response.status_code}")
-        return None
-    logging.info(f"Message sent to user {user_id} in chatroom {chatroom_id}")
-    return message_response.json()
 
-async def send_messages_to_all_in_lounge(message_text):
-    users = await get_lounge_users()
+    async with aiohttp.ClientSession() as session:
+        async with session.post(SEND_MESSAGE_URL, json=payload, headers=headers) as response:
+            if response.status != 200:
+                logging.error(f"Failed to send message: {response.status}")
+                return None
+            return await response.json()
+
+async def send_hi_to_everyone(token, message="hi", status_message=None, bot=None, chat_id=None):
+    users = await fetch_lounge_users(token)
+    total_users = len(users)
+    if not users:
+        logging.info("No users found in the lounge.")
+        return
+
+    sent_count = 0
     for user in users:
-        user_id = user.get("_id")
-        if user_id:
-            await open_chatroom_and_send_message(user_id, message_text)
+        user_id = user["user"]["_id"]
+        chatroom_id = await open_chatroom(token, user_id)
+        if chatroom_id:
+            await send_message(token, chatroom_id, message)
+            sent_count += 1
+            if bot and chat_id and status_message:
+                await bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=status_message.message_id,
+                    text=f"Lounge Users: {total_users} Message sent: {sent_count}",
+                )
+            logging.info(f"Sent message to {user['user']['name']} in chatroom {chatroom_id}.")
+        await asyncio.sleep(1)  # Avoid hitting API rate limits

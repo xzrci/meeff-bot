@@ -77,6 +77,9 @@ async def process_users(session, users, token, user_id):
             data = await response.json()
             if data.get("errorCode") == "LikeExceeded":
                 logging.info("Daily like limit reached.")
+                await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],
+                                            text=f"You've reached the daily limit. Total Added Friends: {state['total_added_friends']}. Try again tomorrow.",
+                                            reply_markup=None)
                 return True
             await bot.send_message(chat_id=user_id, text=format_user_details(user), parse_mode="HTML")
             batch_added_friends += 1
@@ -116,9 +119,6 @@ async def run_requests(user_id):
                                                 reply_markup=stop_markup)
                 else:
                     if await process_users(session, users, token, user_id):
-                        await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],
-                                                    text="You've reached daily limit, try again tomorrow.",
-                                                    reply_markup=None)
                         state["running"] = False
                         if state["pinned_message_id"]:
                             await bot.unpin_chat_message(chat_id=user_id, message_id=state["pinned_message_id"])

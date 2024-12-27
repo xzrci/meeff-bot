@@ -7,7 +7,6 @@ from aiogram.filters import Command
 from aiogram.types.callback_query import CallbackQuery
 from db_helper import set_token, get_tokens, set_current_account, get_current_account, delete_token
 import html
-import requests
 import json
 from collections import defaultdict
 
@@ -199,6 +198,12 @@ async def fetch_account_info(token):
     async with aiohttp.ClientSession() as session:
         async with session.post(url, data=json.dumps(payload), headers=headers) as response:
             if response.status != 200:
+                data = await response.json()
+                error_code = data.get("errorCode")
+                error_message = data.get("errorMessage")
+                if error_code == "AuthRequired":
+                    logging.error(f"Failed to sign in: {error_message}")
+                    return None
                 logging.error(f"Failed to fetch account info: {response.status}")
                 return None
             data = await response.json()
@@ -222,9 +227,16 @@ async def handle_new_token(message: types.Message):
     token = message.text.strip()
     if len(token) < 10:
         await message.reply("Invalid token. Please try again.")
-    else:
-        set_token(user_id, token, "meeff_user_id_placeholder")
-        await message.reply("Your access token has been saved. Use the menu to manage accounts.")
+        return
+
+    # Verify the token
+    account_info = await fetch_account_info(token)
+    if account_info is None:
+        await message.reply("Failed to sign in. Token is expired or invalid.")
+        return
+
+    set_token(user_id, token, "meeff_user_id_placeholder")
+    await message.reply("Your access token has been verified and saved. Use the menu to manage accounts.")
 
 # Manage accounts and handle other callback queries
 @router.callback_query()

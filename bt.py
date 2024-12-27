@@ -69,7 +69,7 @@ def format_user_details(user):
         details += f"<a href='{photo_url}'>Photo</a> "
     return details
 
-# Display user's own Meeff account information
+# Display user's own Meeff account information with proper formatting
 async def display_account_info(token):
     url = "https://api.meeff.com/user/info/v1"
     headers = {
@@ -82,10 +82,31 @@ async def display_account_info(token):
             if response.status != 200:
                 logging.error(f"Failed to fetch account info: {response.status}")
                 return "Failed to fetch account info."
+            
+            # Parse the API response
             data = await response.json()
-            json_data = json.dumps(data, indent=4)
-            escaped_data = json_data.replace('.', '\\.')
-            return f"```\n{escaped_data}\n```"  # Return the JSON response formatted as a code block
+            if not data:
+                return "No account information available."
+            
+            # Extract and format the account details
+            formatted_details = (
+                f"<b>Name:</b> {data.get('name', 'N/A')}\n"
+                f"<b>Email:</b> {data.get('email', 'N/A')}\n"
+                f"<b>Birth Year:</b> {data.get('birthYear', 'N/A')}\n"
+                f"<b>Gender:</b> {data.get('gender', 'N/A')}\n"
+                f"<b>Languages:</b> {', '.join(data.get('languageCodes', []))}\n"
+                f"<b>Description:</b> {data.get('description', 'N/A')}\n"
+            )
+            
+            # Include profile photos if available
+            photo_urls = data.get('photoUrls', [])
+            if photo_urls:
+                formatted_details += "\n<b>Profile Photos:</b>\n"
+                for idx, photo_url in enumerate(photo_urls, start=1):
+                    formatted_details += f"<a href='{photo_url}'>Photo {idx}</a>\n"
+            
+            return formatted_details
+
 
 # Process each user
 async def process_users(session, users, token):
@@ -274,13 +295,13 @@ async def callback_handler(callback_query: CallbackQuery):
                 pinned_message_id = None
 
     elif callback_query.data == "display_account":
-        token = get_current_account(user_id)
-        if token:
-            account_info = await display_account_info(token)
-            await callback_query.message.edit_text(account_info, parse_mode="MarkdownV2")
-        else:
-            await callback_query.answer("No account token found. Please set an account first.")
-
+    token = get_current_account(user_id)
+    if token:
+        account_info = await display_account_info(token)
+        await callback_query.message.edit_text(account_info, parse_mode="HTML", disable_web_page_preview=True)
+    else:
+        await callback_query.answer("No account token found. Please set an account first.")
+        
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text(
             "Welcome! Use the buttons below to navigate.",

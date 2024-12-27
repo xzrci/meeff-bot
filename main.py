@@ -11,7 +11,7 @@ from db_helper import set_token, get_tokens, set_current_account, get_current_ac
 API_TOKEN = "8088969339:AAGd7a06rPhBhWQ0Q0Yxo8iIEpBQ3_sFzwY"
 
 # Initialize logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(asctime)s - %(message)s")
 
 # Initialize bot and dispatcher
 bot = Bot(token=API_TOKEN)
@@ -54,14 +54,16 @@ async def fetch_users(session, token):
 
 # Format user details for Telegram message
 def format_user_details(user):
-    details = f"Name: {user.get('name', 'N/A')}\n"
-    details += f"Description: {user.get('description', 'N/A')}\n"
-    details += f"Birth Year: {user.get('birthYear', 'N/A')}\n"
-    details += f"Distance: {user.get('distance', 'N/A')} km\n"
-    details += f"Language Codes: {', '.join(user.get('languageCodes', []))}\n"
-    details += "Photos:\n"
+    details = (
+        f"<b>Name:</b> {user.get('name', 'N/A')}\n"
+        f"<b>Description:</b> {user.get('description', 'N/A')}\n"
+        f"<b>Birth Year:</b> {user.get('birthYear', 'N/A')}\n"
+        f"<b>Distance:</b> {user.get('distance', 'N/A')} km\n"
+        f"<b>Language Codes:</b> {', '.join(user.get('languageCodes', []))}\n"
+        "Photos: "
+    )
     for photo_url in user.get('photoUrls', []):
-        details += f"<a href='{photo_url}'>Photo</a>\n"
+        details += f"<a href='{photo_url}'>Photo</a> "
     return details
 
 # Process each user

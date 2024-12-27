@@ -42,12 +42,24 @@ async def fetch_users(session, token):
     url = "https://api.meeff.com/user/explore/v2/?lat=-3.7895238&lng=-38.5327365"
     headers = {"meeff-access-token": token, "Connection": "keep-alive"}
     async with session.get(url, headers=headers) as response:
+        if response.status == 401:
+            logging.error("Unauthorized access. Please check the token.")
+            return []
         if response.status != 200:
             logging.error(f"Failed to fetch users: {response.status}")
             return []
         data = await response.json()
         logging.info(f"Fetched Users: {data}")
         return data.get("users", [])
+
+# Format user details for Telegram message
+def format_user_details(user):
+    details = f"Name: {user.get('name', 'N/A')}\n"
+    details += f"Description: {user.get('description', 'N/A')}\n"
+    details += f"Birth Year: {user.get('birthYear', 'N/A')}\n"
+    details += f"Distance: {user.get('distance', 'N/A')} km\n"
+    details += f"Language Codes: {', '.join(user.get('languageCodes', []))}\n"
+    return details
 
 # Process each user
 async def process_users(session, users, token):
@@ -63,6 +75,10 @@ async def process_users(session, users, token):
             if data.get("errorCode") == "LikeExceeded":
                 logging.info("Daily like limit reached.")
                 return True
+            # Send user details to Telegram chat
+            details = format_user_details(user)
+            await bot.send_message(chat_id=user_chat_id, text=details)
+            await asyncio.sleep(1)  # Short delay to ensure messages are sent one by one
     return False
 
 # Run requests periodically
@@ -87,10 +103,11 @@ async def run_requests():
                 logging.info(f"Using token: {token}")
                 users = await fetch_users(session, token)
                 if not users:
+                    new_text = f"Meeff:\nProcessed batch: {count}, Users fetched: 0"
                     await bot.edit_message_text(
                         chat_id=user_chat_id,
                         message_id=status_message_id,
-                        text=f"Meeff:\nProcessed batch: {count}, Users fetched: 0",
+                        text=new_text,
                         reply_markup=stop_markup
                     )
                 else:
@@ -107,10 +124,11 @@ async def run_requests():
                         break
 
                     count += 1
+                    new_text = f"Meeff:\nProcessed batch: {count}, Users fetched: {len(users)}"
                     await bot.edit_message_text(
                         chat_id=user_chat_id,
                         message_id=status_message_id,
-                        text=f"Meeff:\nProcessed batch: {count}, Users fetched: {len(users)}",
+                        text=new_text,
                         reply_markup=stop_markup
                     )
                 await asyncio.sleep(5)
@@ -236,7 +254,7 @@ async def set_bot_commands():
 
 # Main function to start the bot
 async def main():
-    await set_bot_commands()  # Add this line
+    await set_bot_commands()
     dp.include_router(router)
     await dp.start_polling(bot)
 

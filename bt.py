@@ -11,7 +11,7 @@ from db_helper import set_token, get_tokens, set_current_account, get_current_ac
 API_TOKEN = "8088969339:AAGd7a06rPhBhWQ0Q0Yxo8iIEpBQ3_sFzwY"
 
 # Initialize logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(asctime)s - %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Initialize bot and dispatcher
 bot = Bot(token=API_TOKEN)
@@ -22,6 +22,7 @@ dp = Dispatcher()
 running = False
 user_chat_id = None
 status_message_id = None
+pinned_message_id = None
 
 # Inline keyboards
 start_markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -88,7 +89,7 @@ async def process_users(session, users, token):
 
 # Run requests periodically
 async def run_requests():
-    global running, user_chat_id, status_message_id
+    global running, user_chat_id, status_message_id, pinned_message_id
     count = 0
     async with aiohttp.ClientSession() as session:
         while running:
@@ -136,6 +137,11 @@ async def run_requests():
                         text=new_text,
                         reply_markup=stop_markup
                     )
+                    # Pin the message
+                    if pinned_message_id is None:
+                        pin_message = await bot.send_message(chat_id=user_chat_id, text=new_text)
+                        pinned_message_id = pin_message.message_id
+                        await bot.pin_chat_message(chat_id=user_chat_id, message_id=pinned_message_id)
                 await asyncio.sleep(5)
             except Exception as e:
                 logging.error(f"Error during processing: {e}")
@@ -171,7 +177,7 @@ async def handle_new_token(message: types.Message):
 # Manage accounts and handle other callback queries
 @router.callback_query()
 async def callback_handler(callback_query: CallbackQuery):
-    global running, user_chat_id, status_message_id
+    global running, user_chat_id, status_message_id, pinned_message_id
 
     user_id = callback_query.from_user.id
     user_chat_id = callback_query.message.chat.id  # Ensure this is updated
@@ -243,6 +249,10 @@ async def callback_handler(callback_query: CallbackQuery):
                 reply_markup=start_markup
             )
             await callback_query.answer("Requests stopped.")
+            # Unpin the message
+            if pinned_message_id is not None:
+                await bot.unpin_chat_message(chat_id=user_chat_id, message_id=pinned_message_id)
+                pinned_message_id = None
 
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text(

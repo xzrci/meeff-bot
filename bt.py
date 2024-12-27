@@ -107,7 +107,6 @@ async def display_account_info(token):
             
             return formatted_details
 
-
 # Process each user
 async def process_users(session, users, token):
     for user in users:
@@ -295,12 +294,12 @@ async def callback_handler(callback_query: CallbackQuery):
                 pinned_message_id = None
 
     elif callback_query.data == "display_account":
-    token = get_current_account(user_id)
-    if token:
-        account_info = await display_account_info(token)
-        await callback_query.message.edit_text(account_info, parse_mode="HTML", disable_web_page_preview=True)
-    else:
-        await callback_query.answer("No account token found. Please set an account first.")
+        token = get_current_account(user_id)
+        if token:
+            account_info = await display_account_info(token)
+            await callback_query.message.edit_text(account_info, parse_mode="HTML", disable_web_page_preview=True)
+        else:
+            await callback_query.answer("No account token found. Please set an account first.")
         
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text(

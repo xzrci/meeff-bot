@@ -178,6 +178,7 @@ async def handle_new_token(message: types.Message):
         await message.reply("Your access token has been verified and saved. Use the menu to manage accounts.")
     else:
         await message.reply("Message text is empty. Please provide a valid token.")
+
 @router.callback_query()
 async def callback_handler(callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
@@ -264,11 +265,18 @@ async def callback_handler(callback_query: CallbackQuery):
 
     elif callback_query.data == "invoke":
         tokens = get_tokens(user_id)
+        expired_tokens = []
         for token in tokens:
             account_info = await fetch_account_info(token["token"])
             if account_info is None:
-                delete_token(user_id, token["token"])
-                await callback_query.message.edit_text(f"Deleted expired token: {token['token'][:5]}...")
+                expired_tokens.append(token["token"])
+
+        if expired_tokens:
+            for token in expired_tokens:
+                delete_token(user_id, token)
+                await callback_query.message.edit_text(f"Deleted expired token: {token[:5]}...")
+        else:
+            await callback_query.message.edit_text("No expired tokens found.")
 
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text("Welcome! Use the buttons below to navigate.", reply_markup=start_markup)

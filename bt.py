@@ -158,19 +158,21 @@ async def handle_new_token(message: types.Message):
     if message.text and message.text.startswith("/"):
         return
     user_id = message.from_user.id
-    token = message.text.strip()
-    if len(token) < 10:
-        await message.reply("Invalid token. Please try again.")
-        return
+    if message.text:
+        token = message.text.strip()
+        if len(token) < 10:
+            await message.reply("Invalid token. Please try again.")
+            return
 
-    account_info = await fetch_account_info(token)
-    if account_info is None:
-        await message.reply("Failed to sign in. Token is expired or invalid.")
-        return
+        account_info = await fetch_account_info(token)
+        if account_info is None:
+            await message.reply("Failed to sign in. Token is expired or invalid.")
+            return
 
-    set_token(user_id, token, account_info['name'])
-    await message.reply("Your access token has been verified and saved. Use the menu to manage accounts.")
-
+        set_token(user_id, token, account_info['name'])
+        await message.reply("Your access token has been verified and saved. Use the menu to manage accounts.")
+    else:
+        await message.reply("Message text is empty. Please provide a valid token.")
 
 @router.callback_query()
 async def callback_handler(callback_query: CallbackQuery):

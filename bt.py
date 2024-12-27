@@ -3,6 +3,7 @@ import aiohttp
 import logging
 import html
 import json
+import os
 from collections import defaultdict
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
@@ -11,7 +12,7 @@ from aiogram.types.callback_query import CallbackQuery
 from db_helper import set_token, get_tokens, set_current_account, get_current_account, delete_token
 
 # Tokens
-API_TOKEN = "8088969339:AAGd7a06rPhBhWQ0Q0Yxo8iIEpBQ3_sFzwY"
+API_TOKEN = os.getenv("API_TOKEN")
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -46,6 +47,7 @@ back_markup = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 async def fetch_users(session, token):
+    """Fetch users from the Meeff API."""
     url = "https://api.meeff.com/user/explore/v2/?lat=-3.7895238&lng=-38.5327365"
     headers = {"meeff-access-token": token, "Connection": "keep-alive"}
     async with session.get(url, headers=headers) as response:
@@ -55,6 +57,7 @@ async def fetch_users(session, token):
         return (await response.json()).get("users", [])
 
 def format_user_details(user):
+    """Format user details for display."""
     return (
         f"<b>Name:</b> {html.escape(user.get('name', 'N/A'))}\n"
         f"<b>Description:</b> {html.escape(user.get('description', 'N/A'))}\n"
@@ -65,6 +68,7 @@ def format_user_details(user):
     )
 
 async def process_users(session, users, token, user_id):
+    """Process the list of users and add friends."""
     state = user_states[user_id]
     batch_added_friends = 0
     for user in users:
@@ -93,6 +97,7 @@ async def process_users(session, users, token, user_id):
     return False
 
 async def run_requests(user_id):
+    """Run the requests to fetch and process users."""
     state = user_states[user_id]
     state["total_added_friends"] = 0
     state["batch_index"] = 0
@@ -136,6 +141,7 @@ async def run_requests(user_id):
                 break
 
 async def fetch_account_info(token):
+    """Fetch account information from the Meeff API."""
     url = "https://api.meeff.com/user/login/v4"
     payload = {
         "os": "iOS v16.4.1", "platform": "ios", "device": "BRAND: Apple, MODEL: iPhone 14 Pro",
@@ -156,6 +162,7 @@ async def fetch_account_info(token):
 
 @router.message(Command("start"))
 async def start_command(message: types.Message):
+    """Handle the /start command."""
     user_id = message.chat.id
     state = user_states[user_id]
     state["status_message_id"] = (await message.answer("Welcome! Use the button below to start requests.", reply_markup=start_markup)).message_id
@@ -163,6 +170,7 @@ async def start_command(message: types.Message):
 
 @router.message()
 async def handle_new_token(message: types.Message):
+    """Handle incoming messages to set a new token."""
     if message.text and message.text.startswith("/"):
         return
     user_id = message.from_user.id
@@ -189,6 +197,7 @@ async def handle_new_token(message: types.Message):
 
 @router.callback_query()
 async def callback_handler(callback_query: CallbackQuery):
+    """Handle callback queries from inline buttons."""
     user_id = callback_query.from_user.id
     state = user_states[user_id]
 
@@ -291,13 +300,14 @@ async def callback_handler(callback_query: CallbackQuery):
         await callback_query.message.edit_text("Welcome! Use the buttons below to navigate.", reply_markup=start_markup)
 
 async def set_bot_commands():
+    """Set bot commands."""
     commands = [
-        BotCommand(command="start", description="Start the bot"),
-        BotCommand(command="invoke", description="Delete expired accounts")
+        BotCommand(command="start", description="Start the bot")
     ]
     await bot.set_my_commands(commands)
 
 async def main():
+    """Main function to start the bot."""
     await set_bot_commands()
     dp.include_router(router)
     await dp.start_polling(bot)

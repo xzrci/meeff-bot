@@ -83,7 +83,9 @@ async def display_account_info(token):
                 logging.error(f"Failed to fetch account info: {response.status}")
                 return "Failed to fetch account info."
             data = await response.json()
-            return f"```\n{json.dumps(data, indent=4)}\n```"  # Return the JSON response formatted as a code block
+            json_data = json.dumps(data, indent=4)
+            escaped_data = json_data.replace('.', '\\.')
+            return f"```\n{escaped_data}\n```"  # Return the JSON response formatted as a code block
 
 # Process each user
 async def process_users(session, users, token):

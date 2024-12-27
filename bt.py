@@ -49,6 +49,18 @@ async def fetch_users(session, token):
         logging.info(f"Fetched Users: {data}")
         return data.get("users", [])
 
+# Format user details for Telegram message
+def format_user_details(user):
+    details = f"Name: {user.get('name', 'N/A')}\n"
+    details += f"Description: {user.get('description', 'N/A')}\n"
+    details += f"Birth Year: {user.get('birthYear', 'N/A')}\n"
+    details += f"Distance: {user.get('distance', 'N/A')} km\n"
+    details += f"Language Codes: {', '.join(user.get('languageCodes', []))}\n"
+    details += f"Photos:\n"
+    for photo_url in user.get('photoUrls', []):
+        details += f"{photo_url}\n"
+    return details
+
 # Process each user
 async def process_users(session, users, token):
     for user in users:
@@ -63,6 +75,9 @@ async def process_users(session, users, token):
             if data.get("errorCode") == "LikeExceeded":
                 logging.info("Daily like limit reached.")
                 return True
+            # Send user details to Telegram chat
+            details = format_user_details(user)
+            await bot.send_message(chat_id=user_chat_id, text=details)
     return False
 
 # Run requests periodically
@@ -236,7 +251,7 @@ async def set_bot_commands():
 
 # Main function to start the bot
 async def main():
-    await set_bot_commands()  # Add this line
+    await set_bot_commands()
     dp.include_router(router)
     await dp.start_polling(bot)
 

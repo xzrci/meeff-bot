@@ -142,6 +142,12 @@ async def run_requests():
                         pin_message = await bot.send_message(chat_id=user_chat_id, text=new_text)
                         pinned_message_id = pin_message.message_id
                         await bot.pin_chat_message(chat_id=user_chat_id, message_id=pinned_message_id)
+                    else:
+                        await bot.edit_message_text(
+                            chat_id=user_chat_id,
+                            message_id=pinned_message_id,
+                            text=new_text
+                        )
                 await asyncio.sleep(5)
             except Exception as e:
                 logging.error(f"Error during processing: {e}")

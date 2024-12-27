@@ -158,6 +158,11 @@ async def handle_new_token(message: types.Message):
     if message.text and message.text.startswith("/"):
         return
     user_id = message.from_user.id
+    
+    # Ignore bot's own messages
+    if message.from_user.is_bot:
+        return
+    
     if message.text:
         token = message.text.strip()
         if len(token) < 10:
@@ -173,7 +178,6 @@ async def handle_new_token(message: types.Message):
         await message.reply("Your access token has been verified and saved. Use the menu to manage accounts.")
     else:
         await message.reply("Message text is empty. Please provide a valid token.")
-
 @router.callback_query()
 async def callback_handler(callback_query: CallbackQuery):
     user_id = callback_query.from_user.id

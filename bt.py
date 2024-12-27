@@ -85,6 +85,10 @@ async def display_account_info(token):
             
             # Parse the API response
             data = await response.json()
+
+            # Log the full response data for debugging
+            logging.info(f"Account Info Response: {json.dumps(data, indent=2)}")
+
             if not data:
                 return "No account information available."
             

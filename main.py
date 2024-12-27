@@ -25,7 +25,8 @@ dp = Dispatcher()
 user_states = defaultdict(lambda: {
     "running": False,
     "status_message_id": None,
-    "pinned_message_id": None
+    "pinned_message_id": None,
+    "total_added_friends": 0
 })
 
 # Inline keyboards
@@ -66,6 +67,7 @@ def format_user_details(user):
 
 async def process_users(session, users, token, user_id):
     state = user_states[user_id]
+    batch_added_friends = 0
     for user in users:
         if not state["running"]:
             break
@@ -75,14 +77,26 @@ async def process_users(session, users, token, user_id):
             data = await response.json()
             if data.get("errorCode") == "LikeExceeded":
                 logging.info("Daily like limit reached.")
+                await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],
+                                            text=f"You've reached the daily limit. Total Added Friends: {state['total_added_friends']}. Try again tomorrow.",
+                                            reply_markup=None)
                 return True
             await bot.send_message(chat_id=user_id, text=format_user_details(user), parse_mode="HTML")
+            batch_added_friends += 1
+            state["total_added_friends"] += 1
+            if state["running"]:
+                await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],
+                                            text=f"Batch: {state['batch_index']} Users Fetched: {len(users)}\n"
+                                                 f"Batch: {state['batch_index']} Added Friends: {batch_added_friends}\n"
+                                                 f"Total Added: {state['total_added_friends']}",
+                                            reply_markup=stop_markup)
             await asyncio.sleep(1)
     return False
 
 async def run_requests(user_id):
     state = user_states[user_id]
-    count = 0
+    state["total_added_friends"] = 0
+    state["batch_index"] = 0
     async with aiohttp.ClientSession() as session:
         while state["running"]:
             try:
@@ -98,24 +112,19 @@ async def run_requests(user_id):
                     return
 
                 users = await fetch_users(session, token)
+                state["batch_index"] += 1
                 if not users:
                     await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],
-                                                text=f"Processed batch: {count}, Users fetched: 0",
+                                                text=f"Batch: {state['batch_index']} Users Fetched: 0\n"
+                                                     f"Total Added: {state['total_added_friends']}",
                                                 reply_markup=stop_markup)
                 else:
                     if await process_users(session, users, token, user_id):
-                        await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],
-                                                    text="You've reached daily limit, try again tomorrow.",
-                                                    reply_markup=None)
                         state["running"] = False
                         if state["pinned_message_id"]:
                             await bot.unpin_chat_message(chat_id=user_id, message_id=state["pinned_message_id"])
                             state["pinned_message_id"] = None
                         break
-                    count += 1
-                    await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],
-                                                text=f"Processed batch: {count}, Users fetched: {len(users)}",
-                                                reply_markup=stop_markup)
                 await asyncio.sleep(5)
             except Exception as e:
                 logging.error(f"Error during processing: {e}")
@@ -238,7 +247,8 @@ async def callback_handler(callback_query: CallbackQuery):
             await callback_query.answer("Requests are not running!")
         else:
             state["running"] = False
-            await callback_query.message.edit_text("Requests stopped. Use the button below to start again.", reply_markup=start_markup)
+            message_text = f"Requests stopped. Use the button below to start again.\nTotal Added Friends: {state['total_added_friends']}"
+            await callback_query.message.edit_text(message_text, reply_markup=start_markup)
             await callback_query.answer("Requests stopped.")
             if state["pinned_message_id"]:
                 await bot.unpin_chat_message(chat_id=user_id, message_id=state["pinned_message_id"])

@@ -236,7 +236,7 @@ async def handle_new_token(message: types.Message):
         await message.reply("Failed to sign in. Token is expired or invalid.")
         return
 
-    set_token(user_id, token, "meeff_user_id_placeholder")
+    set_token(user_id, token, account_info['name'])
     await message.reply("Your access token has been verified and saved. Use the menu to manage accounts.")
 
 # Manage accounts and handle other callback queries
@@ -255,7 +255,7 @@ async def callback_handler(callback_query: CallbackQuery):
             )
             return
         buttons = [
-            [InlineKeyboardButton(text=f"Account {i + 1} {'(Current)' if token['token'] == current_token else ''}", callback_data=f"set_account_{i}"),
+            [InlineKeyboardButton(text=f"{token['name']} {'(Current)' if token['token'] == current_token else ''}", callback_data=f"set_account_{i}"),
              InlineKeyboardButton(text="Delete", callback_data=f"delete_account_{i}")]
             for i, token in enumerate(tokens)
         ]

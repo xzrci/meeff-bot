@@ -137,17 +137,10 @@ async def run_requests():
                         text=new_text,
                         reply_markup=stop_markup
                     )
-                    # Pin the message
+                    # Pin the message if not already pinned
                     if pinned_message_id is None:
-                        pin_message = await bot.send_message(chat_id=user_chat_id, text=new_text)
-                        pinned_message_id = pin_message.message_id
-                        await bot.pin_chat_message(chat_id=user_chat_id, message_id=pinned_message_id)
-                    else:
-                        await bot.edit_message_text(
-                            chat_id=user_chat_id,
-                            message_id=pinned_message_id,
-                            text=new_text
-                        )
+                        await bot.pin_chat_message(chat_id=user_chat_id, message_id=status_message_id)
+                        pinned_message_id = status_message_id
                 await asyncio.sleep(5)
             except Exception as e:
                 logging.error(f"Error during processing: {e}")

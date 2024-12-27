@@ -42,6 +42,9 @@ async def fetch_users(session, token):
     url = "https://api.meeff.com/user/explore/v2/?lat=-3.7895238&lng=-38.5327365"
     headers = {"meeff-access-token": token, "Connection": "keep-alive"}
     async with session.get(url, headers=headers) as response:
+        if response.status == 401:
+            logging.error("Unauthorized access. Please check the token.")
+            return []
         if response.status != 200:
             logging.error(f"Failed to fetch users: {response.status}")
             return []
@@ -102,12 +105,14 @@ async def run_requests():
                 logging.info(f"Using token: {token}")
                 users = await fetch_users(session, token)
                 if not users:
-                    await bot.edit_message_text(
-                        chat_id=user_chat_id,
-                        message_id=status_message_id,
-                        text=f"Meeff:\nProcessed batch: {count}, Users fetched: 0",
-                        reply_markup=stop_markup
-                    )
+                    new_text = f"Meeff:\nProcessed batch: {count}, Users fetched: 0"
+                    if new_text != bot.get_message_text(chat_id=user_chat_id, message_id=status_message_id):
+                        await bot.edit_message_text(
+                            chat_id=user_chat_id,
+                            message_id=status_message_id,
+                            text=new_text,
+                            reply_markup=stop_markup
+                        )
                 else:
                     limit_exceeded = await process_users(session, users, token)
                     if limit_exceeded:
@@ -122,12 +127,14 @@ async def run_requests():
                         break
 
                     count += 1
-                    await bot.edit_message_text(
-                        chat_id=user_chat_id,
-                        message_id=status_message_id,
-                        text=f"Meeff:\nProcessed batch: {count}, Users fetched: {len(users)}",
-                        reply_markup=stop_markup
-                    )
+                    new_text = f"Meeff:\nProcessed batch: {count}, Users fetched: {len(users)}"
+                    if new_text != bot.get_message_text(chat_id=user_chat_id, message_id=status_message_id):
+                        await bot.edit_message_text(
+                            chat_id=user_chat_id,
+                            message_id=status_message_id,
+                            text=new_text,
+                            reply_markup=stop_markup
+                        )
                 await asyncio.sleep(5)
             except Exception as e:
                 logging.error(f"Error during processing: {e}")

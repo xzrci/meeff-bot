@@ -115,6 +115,9 @@ async def run_requests(user_id):
                         reply_markup=None
                     )
                     state["running"] = False
+                    if state["pinned_message_id"] is not None:
+                        await bot.unpin_chat_message(chat_id=user_id, message_id=state["pinned_message_id"])
+                        state["pinned_message_id"] = None
                     return
 
                 logging.info(f"Using token: {token}")
@@ -138,6 +141,9 @@ async def run_requests(user_id):
                             reply_markup=None
                         )
                         state["running"] = False
+                        if state["pinned_message_id"] is not None:
+                            await bot.unpin_chat_message(chat_id=user_id, message_id=state["pinned_message_id"])
+                            state["pinned_message_id"] = None
                         break
 
                     count += 1
@@ -158,6 +164,9 @@ async def run_requests(user_id):
                     reply_markup=None
                 )
                 state["running"] = False
+                if state["pinned_message_id"] is not None:
+                    await bot.unpin_chat_message(chat_id=user_id, message_id=state["pinned_message_id"])
+                    state["pinned_message_id"] = None
                 break
 
 # Command handler to start the bot

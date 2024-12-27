@@ -32,7 +32,8 @@ user_states = defaultdict(lambda: {
 start_markup = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Start Requests", callback_data="start")],
     [InlineKeyboardButton(text="Manage Accounts", callback_data="manage_accounts")],
-    [InlineKeyboardButton(text="Show Account Info", callback_data="show_account_info")]
+    [InlineKeyboardButton(text="Show Account Info", callback_data="show_account_info")],
+    [InlineKeyboardButton(text="Invoke", callback_data="invoke")]
 ])
 
 stop_markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -340,6 +341,14 @@ async def callback_handler(callback_query: CallbackQuery):
         else:
             await callback_query.message.edit_text("Failed to retrieve account information.", reply_markup=back_markup)
 
+    elif callback_query.data == "invoke":
+        tokens = get_tokens(user_id)
+        for token in tokens:
+            account_info = await fetch_account_info(token["token"])
+            if account_info is None:
+                delete_token(user_id, token["token"])
+                await callback_query.message.edit_text(f"Deleted expired token: {token['token'][:5]}...")
+
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text(
             "Welcome! Use the buttons below to navigate.",
@@ -350,6 +359,7 @@ async def callback_handler(callback_query: CallbackQuery):
 async def set_bot_commands():
     commands = [
         BotCommand(command="start", description="Start the bot"),
+        BotCommand(command="invoke", description="Delete expired accounts")
     ]
     await bot.set_my_commands(commands)
 

@@ -246,7 +246,8 @@ async def callback_handler(callback_query: CallbackQuery):
             await callback_query.answer("Requests are not running!")
         else:
             state["running"] = False
-            await callback_query.message.edit_text("Requests stopped. Use the button below to start again.", reply_markup=start_markup)
+            message_text = f"Requests stopped. Use the button below to start again.\nTotal Added Friends: {state['total_added_friends']}"
+            await callback_query.message.edit_text(message_text, reply_markup=start_markup)
             await callback_query.answer("Requests stopped.")
             if state["pinned_message_id"]:
                 await bot.unpin_chat_message(chat_id=user_id, message_id=state["pinned_message_id"])

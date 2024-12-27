@@ -27,7 +27,8 @@ pinned_message_id = None
 # Inline keyboards
 start_markup = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Start Requests", callback_data="start")],
-    [InlineKeyboardButton(text="Manage Accounts", callback_data="manage_accounts")]
+    [InlineKeyboardButton(text="Manage Accounts", callback_data="manage_accounts")],
+    [InlineKeyboardButton(text="Display My Account", callback_data="display_account")]
 ])
 
 stop_markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -66,6 +67,25 @@ def format_user_details(user):
     for photo_url in user.get('photoUrls', []):
         details += f"<a href='{photo_url}'>Photo</a> "
     return details
+
+# Display user's own Meeff account information
+async def display_account_info(token):
+    url = "https://api.meeff.com/user/info/v1"
+    headers = {
+        'User-Agent': "okhttp/4.12.0",
+        'Accept-Encoding': "gzip",
+        'meeff-access-token': token
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as response:
+            if response.status != 200:
+                logging.error(f"Failed to fetch account info: {response.status}")
+                return "Failed to fetch account info."
+            data = await response.json()
+            if "user" in data:
+                return format_user_details(data["user"])
+            else:
+                return "Failed to fetch account info."
 
 # Process each user
 async def process_users(session, users, token):
@@ -252,6 +272,14 @@ async def callback_handler(callback_query: CallbackQuery):
             if pinned_message_id is not None:
                 await bot.unpin_chat_message(chat_id=user_chat_id, message_id=pinned_message_id)
                 pinned_message_id = None
+
+    elif callback_query.data == "display_account":
+        token = get_current_account(user_id)
+        if token:
+            account_info = await display_account_info(token)
+            await callback_query.message.edit_text(account_info, parse_mode="HTML")
+        else:
+            await callback_query.answer("No account token found. Please set an account first.")
 
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text(

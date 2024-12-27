@@ -109,7 +109,7 @@ async def run_requests():
                 logging.info(f"Using token: {token}")
                 users = await fetch_users(session, token)
                 if not users:
-                    new_text = f"Meeff:\nProcessed batch: {count}, Users fetched: 0"
+                    new_text = f"Processed batch: {count}, Users fetched: 0"
                     await bot.edit_message_text(
                         chat_id=user_chat_id,
                         message_id=status_message_id,
@@ -123,14 +123,14 @@ async def run_requests():
                         await bot.edit_message_text(
                             chat_id=user_chat_id,
                             message_id=status_message_id,
-                            text="Meeff:\nDaily like limit reached. Stopping requests.",
+                            text="You've reached daily limit, try again tomorrow.",
                             reply_markup=None
                         )
                         running = False
                         break
 
                     count += 1
-                    new_text = f"Meeff:\nProcessed batch: {count}, Users fetched: {len(users)}"
+                    new_text = f"Processed batch: {count}, Users fetched: {len(users)}"
                     await bot.edit_message_text(
                         chat_id=user_chat_id,
                         message_id=status_message_id,
@@ -143,7 +143,7 @@ async def run_requests():
                 await bot.edit_message_text(
                     chat_id=user_chat_id,
                     message_id=status_message_id,
-                    text=f"Meeff:\nAn error occurred: {e}",
+                    text=f"An error occurred: {e}",
                     reply_markup=None
                 )
                 running = False
@@ -222,7 +222,7 @@ async def callback_handler(callback_query: CallbackQuery):
             running = True
             try:
                 status_message = await callback_query.message.edit_text(
-                    "Meeff:\nInitializing requests...",
+                    "Initializing requests...",
                     reply_markup=stop_markup
                 )
                 status_message_id = status_message.message_id
@@ -233,7 +233,7 @@ async def callback_handler(callback_query: CallbackQuery):
             except Exception as e:
                 logging.error(f"Error while starting requests: {e}")
                 await callback_query.message.edit_text(
-                    "Meeff:\nFailed to start requests. Please try again later.",
+                    "Failed to start requests. Please try again later.",
                     reply_markup=start_markup
                 )
                 running = False
@@ -244,7 +244,7 @@ async def callback_handler(callback_query: CallbackQuery):
         else:
             running = False
             await callback_query.message.edit_text(
-                "Meeff:\nRequests stopped. Use the button below to start again.",
+                "Requests stopped. Use the button below to start again.",
                 reply_markup=start_markup
             )
             await callback_query.answer("Requests stopped.")

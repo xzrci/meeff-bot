@@ -59,6 +59,9 @@ def format_user_details(user):
     details += f"Birth Year: {user.get('birthYear', 'N/A')}\n"
     details += f"Distance: {user.get('distance', 'N/A')} km\n"
     details += f"Language Codes: {', '.join(user.get('languageCodes', []))}\n"
+    details += "Photos:\n"
+    for photo_url in user.get('photoUrls', []):
+        details += f"<a href='{photo_url}'>Photo</a>\n"
     return details
 
 # Process each user
@@ -77,7 +80,7 @@ async def process_users(session, users, token):
                 return True
             # Send user details to Telegram chat
             details = format_user_details(user)
-            await bot.send_message(chat_id=user_chat_id, text=details)
+            await bot.send_message(chat_id=user_chat_id, text=details, parse_mode="HTML")
             await asyncio.sleep(1)  # Short delay to ensure messages are sent one by one
     return False
 

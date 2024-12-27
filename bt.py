@@ -11,7 +11,7 @@ import json
 from collections import defaultdict
 
 # Tokens
-API_TOKEN = "8088969339:AAGd7a06rPhBhWQ0Q0Yxo8iIEpBQ3_sFzwY"
+API_TOKEN = "7735279075:AAHvefFBqiRUE4NumS0JlwTAiSMzfrgTmqA"
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -236,7 +236,7 @@ async def handle_new_token(message: types.Message):
         await message.reply("Failed to sign in. Token is expired or invalid.")
         return
 
-    set_token(user_id, token, "meeff_user_id_placeholder")
+    set_token(user_id, token, account_info['name'])
     await message.reply("Your access token has been verified and saved. Use the menu to manage accounts.")
 
 # Manage accounts and handle other callback queries
@@ -255,7 +255,7 @@ async def callback_handler(callback_query: CallbackQuery):
             )
             return
         buttons = [
-            [InlineKeyboardButton(text=f"Account {i + 1} {'(Current)' if token['token'] == current_token else ''}", callback_data=f"set_account_{i}"),
+            [InlineKeyboardButton(text=f"{token['name']} {'(Current)' if token['token'] == current_token else ''}", callback_data=f"set_account_{i}"),
              InlineKeyboardButton(text="Delete", callback_data=f"delete_account_{i}")]
             for i, token in enumerate(tokens)
         ]

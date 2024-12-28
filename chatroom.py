@@ -81,7 +81,7 @@ async def send_message_to_everyone(token, message, status_message=None, bot=None
                     text=f"Chatrooms: {total_chatrooms} Messages sent: {sent_count}",
                 )
             logging.info(f"Sent message to chatroom {chatroom_id}.")
-            await asyncio.sleep(0.01)  # Avoid hitting API rate limits
+            await asyncio.sleep(0.02)  # Avoid hitting API rate limits
 
         if not next_from_date:
             break

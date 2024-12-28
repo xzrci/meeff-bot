@@ -92,7 +92,7 @@ async def process_users(session, users, token, user_id):
                                                  f"Total Added: {state['total_added_friends']}",
                                             reply_markup=stop_markup)
             # Reduce or remove this sleep interval
-            await asyncio.sleep(0.2)  # Example: reduce to 0.2 seconds
+            await asyncio.sleep(0.02)  # Example: reduce to 0.2 seconds
     return False
 
 async def run_requests(user_id):

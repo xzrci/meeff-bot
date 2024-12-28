@@ -9,7 +9,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram.filters import Command
 from aiogram.types.callback_query import CallbackQuery
 from db import set_token, get_tokens, set_current_account, get_current_account, delete_token
-from lounge import send_hi_to_everyone
+from lounge import sendlounge
 
 # Tokens
 API_TOKEN = "7735279075:AAHvefFBqiRUE4NumS0JlwTAiSMzfrgTmqA"
@@ -197,7 +197,7 @@ async def lounge_command(message: types.Message):
 
     custom_message = " ".join(command_text.split()[1:])
     status_message = await message.reply("Fetching lounge users and sending messages...")
-    await send_hi_to_everyone(token, custom_message, status_message=status_message, bot=bot, chat_id=user_id)
+    await sendlounge(token, custom_message, status_message=status_message, bot=bot, chat_id=user_id)
     await status_message.edit_text("Messages sent to everyone in the lounge.")
 
 @router.message()

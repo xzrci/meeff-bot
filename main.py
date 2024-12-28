@@ -11,6 +11,7 @@ from aiogram.types.callback_query import CallbackQuery
 from db import set_token, get_tokens, set_current_account, get_current_account, delete_token
 from lounge import send_lounge
 from chatroom import send_message_to_everyone
+from unsubscribe import unsubscribe_everyone
 
 # Tokens
 API_TOKEN = "7735279075:AAHvefFBqiRUE4NumS0JlwTAiSMzfrgTmqA"
@@ -183,6 +184,19 @@ async def send_to_all_command(message: types.Message):
     await status_message.edit_text("Messages sent to everyone in all chatrooms.")
 
 
+@router.message(Command("skip"))
+async def unsubscribe_all_command(message: types.Message):
+    user_id = message.chat.id
+    token = get_current_account(user_id)
+    if not token:
+        await message.reply("No active account found. Please set an account before unsubscribing.")
+        return
+
+    status_message = await message.reply("Fetching chatrooms and unsubscribing...")
+    await unsubscribe_everyone(token, status_message=status_message, bot=bot, chat_id=user_id)
+    await status_message.edit_text("Unsubscribed from all chatrooms.")
+
+
 @router.message(Command("lounge"))
 async def lounge_command(message: types.Message):
     user_id = message.chat.id
@@ -333,8 +347,9 @@ async def callback_handler(callback_query: CallbackQuery):
 async def set_bot_commands():
     commands = [
         BotCommand(command="start", description="Start the bot"),
-        BotCommand(command="lounge", description="Send a custom message to everyone in the lounge"),
-        BotCommand(command="chatroom", description="Send a message to all")
+        BotCommand(command="lounge", description="Send message to everyone in the lounge"),
+        BotCommand(command="chatroom", description="Send a message to everyone"),
+        BotCommand(command="skip", description="Skip everyone in the chatroom")
     ]
     await bot.set_my_commands(commands)
 

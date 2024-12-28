@@ -8,7 +8,7 @@ from aiogram import Bot, Dispatcher, Router, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram.filters import Command
 from aiogram.types.callback_query import CallbackQuery
-from db_helper import set_token, get_tokens, set_current_account, get_current_account, delete_token
+from db import set_token, get_tokens, set_current_account, get_current_account, delete_token
 from lounge import send_hi_to_everyone
 
 # Tokens

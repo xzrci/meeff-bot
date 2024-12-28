@@ -163,6 +163,25 @@ async def start_command(message: types.Message):
     state["status_message_id"] = (await message.answer("Welcome! Use the button below to start requests.", reply_markup=start_markup)).message_id
     state["pinned_message_id"] = None
 
+@router.message(Command("chatroom"))
+async def send_to_all_command(message: types.Message):
+    user_id = message.chat.id
+    token = get_current_account(user_id)
+    if not token:
+        await message.reply("No active account found. Please set an account before sending messages.")
+        return
+
+    command_text = message.text.strip()
+    if len(command_text.split()) < 2:
+        await message.reply("Please provide a message to send. Usage: /send_to_all <message>")
+        return
+
+    custom_message = " ".join(command_text.split()[1:])
+    status_message = await message.reply("Fetching chatrooms and sending messages...")
+    await send_message_to_everyone(token, custom_message, status_message=status_message, bot=bot, chat_id=user_id)
+    await status_message.edit_text("Messages sent to everyone in all chatrooms.")
+
+
 @router.message(Command("lounge"))
 async def lounge_command(message: types.Message):
     user_id = message.chat.id
@@ -313,7 +332,8 @@ async def callback_handler(callback_query: CallbackQuery):
 async def set_bot_commands():
     commands = [
         BotCommand(command="start", description="Start the bot"),
-        BotCommand(command="lounge", description="Send a custom message to everyone in the lounge")
+        BotCommand(command="lounge", description="Send a custom message to everyone in the lounge"),
+        BotCommand(command="chatroom", description="Send a message to all")
     ]
     await bot.set_my_commands(commands)
 

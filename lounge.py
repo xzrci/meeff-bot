@@ -80,6 +80,6 @@ async def send_lounge(token, message="hi", status_message=None, bot=None, chat_i
                         text=f"Lounge Users: {total_users} Message sent: {sent_count}",
                     )
                 logging.info(f"Sent message to {user['user']['name']} in chatroom {chatroom_id}.")
-            await asyncio.sleep(0.2)  # Avoid hitting API rate limits
+            await asyncio.sleep(0.02)  # Avoid hitting API rate limits
 
     logging.info(f"Finished sending messages. Total Lounge Users: {total_users}, Messages sent: {sent_count}")

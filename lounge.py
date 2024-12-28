@@ -56,7 +56,7 @@ async def send_message(token, chatroom_id, message):
                 return None
             return await response.json()
 
-async def send_hi_to_everyone(token, message="hi", status_message=None, bot=None, chat_id=None):
+async def send_lounge(token, message="hi", status_message=None, bot=None, chat_id=None):
     sent_count = 0
     total_users = 0
 

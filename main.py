@@ -8,10 +8,11 @@ from aiogram import Bot, Dispatcher, Router, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram.filters import Command
 from aiogram.types.callback_query import CallbackQuery
-from db import set_token, get_tokens, set_current_account, get_current_account, delete_token
+from db import set_token, get_tokens, set_current_account, get_current_account, delete_token, set_user_filters, get_user_filters
 from lounge import send_lounge
 from chatroom import send_message_to_everyone
 from unsubscribe import unsubscribe_everyone
+from filters import filter_command, set_filter
 
 # Tokens
 API_TOKEN = "7735279075:AAHvefFBqiRUE4NumS0JlwTAiSMzfrgTmqA"
@@ -92,8 +93,7 @@ async def process_users(session, users, token, user_id):
                                                  f"Batch: {state['batch_index']} Added Friends: {batch_added_friends}\n"
                                                  f"Total Added: {state['total_added_friends']}",
                                             reply_markup=stop_markup)
-            # Reduce or remove this sleep interval
-            await asyncio.sleep(0.02)  # Example: reduce to 0.2 seconds
+            await asyncio.sleep(0.02)
     return False
 
 async def run_requests(user_id):
@@ -148,7 +148,9 @@ async def fetch_account_info(token):
         "appVersion": "6.3.9", "locale": "en"
     }
     headers = {
-        'User-Agent': "okhttp/4.12.0", 'Accept-Encoding': "gzip", 'meeff-access-token': token,
+        'User-Agent': "okhttp/4.12.0",
+        'Accept-Encoding': "gzip",
+        'meeff-access-token': token,
         'content-type': "application/json; charset=utf-8"
     }
     async with aiohttp.ClientSession() as session:
@@ -183,7 +185,6 @@ async def send_to_all_command(message: types.Message):
     await send_message_to_everyone(token, custom_message, status_message=status_message, bot=bot, chat_id=user_id)
     await status_message.edit_text("Messages sent to everyone in all chatrooms.")
 
-
 @router.message(Command("skip"))
 async def unsubscribe_all_command(message: types.Message):
     user_id = message.chat.id
@@ -195,7 +196,6 @@ async def unsubscribe_all_command(message: types.Message):
     status_message = await message.reply("Fetching chatrooms and unsubscribing...")
     await unsubscribe_everyone(token, status_message=status_message, bot=bot, chat_id=user_id)
     await status_message.edit_text("Unsubscribed from all chatrooms.")
-
 
 @router.message(Command("lounge"))
 async def lounge_command(message: types.Message):
@@ -214,6 +214,10 @@ async def lounge_command(message: types.Message):
     status_message = await message.reply("Fetching lounge users and sending messages...")
     await send_lounge(token, custom_message, status_message=status_message, bot=bot, chat_id=user_id)
     await status_message.edit_text("Messages sent to everyone in the lounge.")
+
+@router.message(Command("filter"))
+async def filter_handler(message: types.Message):
+    await filter_command(message)
 
 @router.message()
 async def handle_new_token(message: types.Message):
@@ -344,12 +348,16 @@ async def callback_handler(callback_query: CallbackQuery):
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text("Welcome! Use the buttons below to navigate.", reply_markup=start_markup)
 
+    if callback_query.data.startswith("filter_"):
+        await set_filter(callback_query)
+
 async def set_bot_commands():
     commands = [
         BotCommand(command="start", description="Start the bot"),
         BotCommand(command="lounge", description="Send message to everyone in the lounge"),
         BotCommand(command="chatroom", description="Send a message to everyone"),
-        BotCommand(command="skip", description="Skip everyone in the chatroom")
+        BotCommand(command="skip", description="Skip everyone in the chatroom"),
+        BotCommand(command="filter", description="Set filter preferences")
     ]
     await bot.set_my_commands(commands)
 

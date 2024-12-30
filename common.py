@@ -28,10 +28,14 @@ def get_age_keyboard():
     return keyboard
 
 def get_nationality_keyboard():
-    countries = ["RU", "US", "PK", "IN", "DE", "FR", "BR", "CN", "JP", "KR", "CA", "AU", "IT", "ES", "ZA"]
+    countries = [
+        ("RU", "🇷🇺"), ("US", "🇺🇸"), ("PK", "🇵🇰"), ("IN", "🇮🇳"), ("DE", "🇩🇪"),
+        ("FR", "🇫🇷"), ("BR", "🇧🇷"), ("CN", "🇨🇳"), ("JP", "🇯🇵"), ("KR", "🇰🇷"),
+        ("CA", "🇨🇦"), ("AU", "🇦🇺"), ("IT", "🇮🇹"), ("ES", "🇪🇸"), ("ZA", "🇿🇦")
+    ]
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="All Countries", callback_data="filter_nationality_all")],
-        *[[InlineKeyboardButton(text=country, callback_data=f"filter_nationality_{country}")] for country in countries],
+        *[[InlineKeyboardButton(text=f"{flag} {country}", callback_data=f"filter_nationality_{country}")] for country, flag in countries],
         [InlineKeyboardButton(text="Back", callback_data="filter_back")]
     ])
     return keyboard

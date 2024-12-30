@@ -64,10 +64,6 @@ async def set_filter(callback_query: types.CallbackQuery):
             filter_data["filterNationalityCode"] = nationality
         message = f"Filter updated: Nationality set to {nationality}"
 
-    elif callback_query.data == "show_filters":
-        await show_filters(callback_query, token)
-        return
-    
     # Update user filters in storage
     set_user_filters(user_id, token, filter_data)
 
@@ -88,11 +84,3 @@ async def set_filter(callback_query: types.CallbackQuery):
 
 async def filter_command(message: types.Message):
     await message.answer("Set your filter preferences:", reply_markup=get_filter_keyboard())
-
-async def show_filters(callback_query: types.CallbackQuery, token: str):
-    user_filters = get_user_filters(callback_query.from_user.id, token)
-    if user_filters:
-        filter_text = json.dumps(user_filters, indent=2)
-        await callback_query.message.edit_text(f"Current Filters:\n{filter_text}")
-    else:
-        await callback_query.message.edit_text("No filters found.")

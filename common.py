@@ -6,7 +6,6 @@ def get_filter_keyboard():
         [InlineKeyboardButton(text="Gender", callback_data="filter_gender")],
         [InlineKeyboardButton(text="Age", callback_data="filter_age")],
         [InlineKeyboardButton(text="Nationality", callback_data="filter_nationality")],
-        [InlineKeyboardButton(text="Show Current Filters", callback_data="show_filters")],
         [InlineKeyboardButton(text="Back", callback_data="back_to_menu")]
     ])
     return keyboard

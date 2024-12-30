@@ -4,17 +4,20 @@ from pymongo import MongoClient
 client = MongoClient("mongodb+srv://itxcriminal:qureshihashmI1@cluster0.jyqy9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 db = client.meeff_tokens
 
-# Insert or update token for a user
-def set_token(user_id, token, meeff_user_id):
+# Insert or update token for a user with filters
+def set_token(user_id, token, meeff_user_id, filters=None):
+    update_data = {"user_id": user_id, "token": token, "name": meeff_user_id}
+    if filters:
+        update_data["filters"] = filters
     db.tokens.update_one(
         {"user_id": user_id, "token": token},
-        {"$set": {"user_id": user_id, "token": token, "name": meeff_user_id}},
+        {"$set": update_data},
         upsert=True
     )
-    
+
 # Get all tokens for a user
 def get_tokens(user_id):
-    return list(db.tokens.find({"user_id": user_id}, {"_id": 0, "token": 1, "name": 1}))
+    return list(db.tokens.find({"user_id": user_id}, {"_id": 0, "token": 1, "name": 1, "filters": 1}))
 
 # Get all tokens in the database
 def list_tokens():
@@ -30,3 +33,15 @@ def get_current_account(user_id):
 # Delete a token for a user
 def delete_token(user_id, token):
     db.tokens.delete_one({"user_id": user_id, "token": token})
+
+# Add or update filters for a specific token
+def set_user_filters(user_id, token, filters):
+    db.tokens.update_one(
+        {"user_id": user_id, "token": token},
+        {"$set": {"filters": filters}},
+        upsert=True
+    )
+
+def get_user_filters(user_id, token):
+    record = db.tokens.find_one({"user_id": user_id, "token": token}, {"filters": 1})
+    return record["filters"] if record and "filters" in record else None

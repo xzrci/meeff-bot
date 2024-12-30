@@ -1,7 +1,7 @@
 import asyncio
 import aiohttp
 import logging
-import html #html for ..
+import html
 import json
 from collections import defaultdict
 from aiogram import Bot, Dispatcher, Router, types

@@ -37,8 +37,7 @@ user_states = defaultdict(lambda: {
 start_markup = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Start Requests", callback_data="start")],
     [InlineKeyboardButton(text="Manage Accounts", callback_data="manage_accounts")],
-    [InlineKeyboardButton(text="Show Account Info", callback_data="show_account_info")],
-    [InlineKeyboardButton(text="Invoke", callback_data="invoke")]
+    [InlineKeyboardButton(text="Show Account Info", callback_data="show_account_info")]
 ])
 
 stop_markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -219,6 +218,23 @@ async def lounge_command(message: types.Message):
 async def filter_handler(message: types.Message):
     await filter_command(message)
 
+@router.message(Command("invoke"))
+async def invoke_command(message: types.Message):
+    user_id = message.chat.id
+    tokens = get_tokens(user_id)
+    expired_tokens = []
+    for token in tokens:
+        account_info = await fetch_account_info(token["token"])
+        if account_info is None:
+            expired_tokens.append(token)
+
+    if expired_tokens:
+        for token in expired_tokens:
+            delete_token(user_id, token["token"])
+            await message.reply(f"Deleted expired token for account: {token['name']}")
+    else:
+        await message.reply("No expired tokens found.")
+
 @router.message()
 async def handle_new_token(message: types.Message):
     if message.text and message.text.startswith("/"):
@@ -330,21 +346,6 @@ async def callback_handler(callback_query: CallbackQuery):
         else:
             await callback_query.message.edit_text("Failed to retrieve account information.", reply_markup=back_markup)
 
-    elif callback_query.data == "invoke":
-        tokens = get_tokens(user_id)
-        expired_tokens = []
-        for token in tokens:
-            account_info = await fetch_account_info(token["token"])
-            if account_info is None:
-                expired_tokens.append(token["token"])
-
-        if expired_tokens:
-            for token in expired_tokens:
-                delete_token(user_id, token)
-                await callback_query.message.edit_text(f"Deleted expired token: {token[:5]}...")
-        else:
-            await callback_query.message.edit_text("No expired tokens found.")
-
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text("Welcome! Use the buttons below to navigate.", reply_markup=start_markup)
 
@@ -357,7 +358,8 @@ async def set_bot_commands():
         BotCommand(command="lounge", description="Send message to everyone in the lounge"),
         BotCommand(command="chatroom", description="Send a message to everyone"),
         BotCommand(command="skip", description="Skip everyone in the chatroom"),
-        BotCommand(command="filter", description="Set filter preferences")
+        BotCommand(command="filter", description="Set filter preferences"),
+        BotCommand(command="invoke", description="Invoke expired token cleanup")
     ]
     await bot.set_my_commands(commands)
 

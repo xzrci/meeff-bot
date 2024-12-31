@@ -50,7 +50,7 @@ back_markup = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 async def fetch_users(session, token):
-    url = "https://api.meeff.com/user/explore/v2/?lat=-3.7895238&lng=-38.5327365"
+    url = "https://api.meeff.com/user/explore/v2/?lat=33.589510&lng=-117.860909"
     headers = {"meeff-access-token": token, "Connection": "keep-alive"}
     async with session.get(url, headers=headers) as response:
         if response.status != 200:

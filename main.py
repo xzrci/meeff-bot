@@ -366,10 +366,10 @@ async def set_bot_commands():
         BotCommand(command="start", description="Start the bot"),
         BotCommand(command="lounge", description="Send message to everyone in the lounge"),
         BotCommand(command="chatroom", description="Send a message to everyone"),
-        BotCommand(command="skip", description="Skip everyone in the chatroom"),
+        BotCommand(command="aio", description="Show aio commands"),  # Reorder aio command
         BotCommand(command="filter", description="Set filter preferences"),
         BotCommand(command="invoke", description="Invoke expired token cleanup"),
-        BotCommand(command="aio", description="Show aio commands")  # Add aio command
+        BotCommand(command="skip", description="Skip everyone in the chatroom")
     ]
     await bot.set_my_commands(commands)
 

@@ -93,7 +93,7 @@ async def process_users(session, users, token, user_id):
                                                  f"Batch: {state['batch_index']} Added Friends: {batch_added_friends}\n"
                                                  f"Total Added: {state['total_added_friends']}",
                                             reply_markup=stop_markup)
-            await asyncio.sleep(0.02)
+            await asyncio.sleep(0.001)
     return False
 
 async def run_requests(user_id):
@@ -128,7 +128,7 @@ async def run_requests(user_id):
                             await bot.unpin_chat_message(chat_id=user_id, message_id=state["pinned_message_id"])
                             state["pinned_message_id"] = None
                         break
-                await asyncio.sleep(5)
+                await asyncio.sleep(0.01)
             except Exception as e:
                 logging.error(f"Error during processing: {e}")
                 await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],

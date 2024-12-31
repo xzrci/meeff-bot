@@ -13,6 +13,7 @@ from lounge import send_lounge
 from chatroom import send_message_to_everyone
 from unsubscribe import unsubscribe_everyone
 from filters import filter_command, set_filter
+from aio import aio_markup, aio_callback_handler, run_requests, aio_markup_processing, user_states
 
 # Tokens
 API_TOKEN = "7735279075:AAHvefFBqiRUE4NumS0JlwTAiSMzfrgTmqA"
@@ -235,6 +236,10 @@ async def invoke_command(message: types.Message):
     else:
         await message.reply("No expired tokens found.")
 
+@router.message(Command("aio"))
+async def aio_command(message: types.Message):
+    await message.answer("Choose an action:", reply_markup=aio_markup)
+
 @router.message()
 async def handle_new_token(message: types.Message):
     if message.text and message.text.startswith("/"):
@@ -265,6 +270,10 @@ async def handle_new_token(message: types.Message):
 async def callback_handler(callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
     state = user_states[user_id]
+
+    if callback_query.data.startswith("aio_"):
+        await aio_callback_handler(callback_query)
+        return
 
     if callback_query.data == "manage_accounts":
         tokens = get_tokens(user_id)
@@ -359,7 +368,8 @@ async def set_bot_commands():
         BotCommand(command="chatroom", description="Send a message to everyone"),
         BotCommand(command="skip", description="Skip everyone in the chatroom"),
         BotCommand(command="filter", description="Set filter preferences"),
-        BotCommand(command="invoke", description="Invoke expired token cleanup")
+        BotCommand(command="invoke", description="Invoke expired token cleanup"),
+        BotCommand(command="aio", description="Show aio commands")  # Add aio command
     ]
     await bot.set_my_commands(commands)
 

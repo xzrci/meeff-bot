@@ -14,9 +14,19 @@ from chatroom import send_message_to_everyone
 from unsubscribe import unsubscribe_everyone
 from filters import filter_command, set_filter
 from aio import aio_markup, aio_callback_handler, run_requests, aio_markup_processing, user_states
+from datetime import datetime, timedelta
 
 # Tokens
 API_TOKEN = "7735279075:AAHvefFBqiRUE4NumS0JlwTAiSMzfrgTmqA"
+
+# Admin user ID
+ADMIN_USER_ID = 6387028671  # Replace with actual admin user ID
+
+# Password access dictionary
+password_access = {}
+
+# Password for temporary access
+TEMP_PASSWORD = "your_password"  # Replace with your chosen password
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -48,6 +58,16 @@ stop_markup = InlineKeyboardMarkup(inline_keyboard=[
 back_markup = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Back", callback_data="back_to_menu")]
 ])
+
+def is_admin(user_id):
+    return user_id == ADMIN_USER_ID
+
+def has_valid_access(user_id):
+    if is_admin(user_id):
+        return True
+    if user_id in password_access and password_access[user_id] > datetime.now():
+        return True
+    return False
 
 async def fetch_users(session, token):
     url = "https://api.meeff.com/user/explore/v2/?lat=33.589510&lng=-117.860909"
@@ -160,9 +180,28 @@ async def fetch_account_info(token):
                 return None
             return (await response.json()).get('user')
 
+@router.message(Command("password"))
+async def password_command(message: types.Message):
+    user_id = message.chat.id
+    command_text = message.text.strip()
+    if len(command_text.split()) < 2:
+        await message.reply("Please provide the password. Usage: /password <password>")
+        return
+
+    provided_password = command_text.split()[1]
+    if provided_password == TEMP_PASSWORD:
+        password_access[user_id] = datetime.now() + timedelta(hours=1)
+        await message.reply("Access granted for one hour.")
+        await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+    else:
+        await message.reply("Incorrect password.")
+
 @router.message(Command("start"))
 async def start_command(message: types.Message):
     user_id = message.chat.id
+    if not has_valid_access(user_id):
+        await message.reply("You are not authorized to use this bot.")
+        return
     state = user_states[user_id]
     state["status_message_id"] = (await message.answer("Welcome! Use the button below to start requests.", reply_markup=start_markup)).message_id
     state["pinned_message_id"] = None
@@ -170,6 +209,9 @@ async def start_command(message: types.Message):
 @router.message(Command("chatroom"))
 async def send_to_all_command(message: types.Message):
     user_id = message.chat.id
+    if not has_valid_access(user_id):
+        await message.reply("You are not authorized to use this bot.")
+        return
     token = get_current_account(user_id)
     if not token:
         await message.reply("No active account found. Please set an account before sending messages.")
@@ -188,6 +230,9 @@ async def send_to_all_command(message: types.Message):
 @router.message(Command("skip"))
 async def unsubscribe_all_command(message: types.Message):
     user_id = message.chat.id
+    if not has_valid_access(user_id):
+        await message.reply("You are not authorized to use this bot.")
+        return
     token = get_current_account(user_id)
     if not token:
         await message.reply("No active account found. Please set an account before unsubscribing.")
@@ -200,6 +245,9 @@ async def unsubscribe_all_command(message: types.Message):
 @router.message(Command("lounge"))
 async def lounge_command(message: types.Message):
     user_id = message.chat.id
+    if not has_valid_access(user_id):
+        await message.reply("You are not authorized to use this bot.")
+        return
     token = get_current_account(user_id)
     if not token:
         await message.reply("No active account found. Please set an account before sending messages.")
@@ -217,11 +265,18 @@ async def lounge_command(message: types.Message):
 
 @router.message(Command("filter"))
 async def filter_handler(message: types.Message):
+    if not has_valid_access(message.chat.id):
+        await message.reply("You are not authorized to use this bot.")
+        return
     await filter_command(message)
 
 @router.message(Command("invoke"))
 async def invoke_command(message: types.Message):
     user_id = message.chat.id
+    if not has_valid_access(user_id):
+        await message.reply("You are not authorized to use this bot.")
+        return
+
     tokens = get_tokens(user_id)
     expired_tokens = []
     for token in tokens:
@@ -238,6 +293,9 @@ async def invoke_command(message: types.Message):
 
 @router.message(Command("aio"))
 async def aio_command(message: types.Message):
+    if not has_valid_access(message.chat.id):
+        await message.reply("You are not authorized to use this bot.")
+        return
     await message.answer("Choose an action:", reply_markup=aio_markup)
 
 @router.message()
@@ -248,6 +306,10 @@ async def handle_new_token(message: types.Message):
     
     # Ignore bot's own messages
     if message.from_user.is_bot:
+        return
+    
+    if not has_valid_access(user_id):
+        await message.reply("You are not authorized to use this bot.")
         return
     
     if message.text:
@@ -270,6 +332,10 @@ async def handle_new_token(message: types.Message):
 async def callback_handler(callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
     state = user_states[user_id]
+
+    if not has_valid_access(user_id):
+        await callback_query.answer("You are not authorized to use this bot.")
+        return
 
     if callback_query.data.startswith("aio_"):
         await aio_callback_handler(callback_query)
@@ -369,7 +435,8 @@ async def set_bot_commands():
         BotCommand(command="aio", description="Show aio commands"),  # Reorder aio command
         BotCommand(command="filter", description="Set filter preferences"),
         BotCommand(command="invoke", description="Invoke expired token cleanup"),
-        BotCommand(command="skip", description="Skip everyone in the chatroom")
+        BotCommand(command="skip", description="Skip everyone in the chatroom"),
+        BotCommand(command="password", description="Enter password for temporary access")
     ]
     await bot.set_my_commands(commands)
 

@@ -26,7 +26,7 @@ ADMIN_USER_ID = 6387028671  # Replace with actual admin user ID
 password_access = {}
 
 # Password for temporary access
-TEMP_PASSWORD = "your_password"  # Replace with your chosen password
+TEMP_PASSWORD = "11223344"  # Replace with your chosen password
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
